@@ -84,7 +84,7 @@ def track_mode(em, ref_label, ref_mode_idx, cur_label, num_modes, window=5):
 
 def solve_and_identify(anisotropic_equation, anchor, anchor_mode_idx, target, num_modes,
                         window=5, x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
-                        simulation_name='solve_and_identify', verbose=False):
+                        sidewall_angle=5, simulation_name='solve_and_identify', verbose=False):
     """Re-identify a mode at `target` = (h_core, w_core, wavelength) via overlap against a known
     mode at `anchor` = (h_core, w_core, wavelength).
 
@@ -100,12 +100,12 @@ def solve_and_identify(anisotropic_equation, anchor, anchor_mode_idx, target, nu
 
     em = launch_session(simulation_name, verbose=verbose)
     try:
-        setup_waveguide(em, anisotropic_equation, h_a, w_a)
+        setup_waveguide(em, anisotropic_equation, h_a, w_a, sidewall_angle=sidewall_angle)
         solve_modes(em, 'anchor', wavelength=wl_a, num_modes=num_modes,
                     x_resolution=x_resolution, y_resolution=y_resolution,
                     max_effective_index=max_effective_index)
 
-        set_core_width(em, h_t, w_t)
+        set_core_width(em, h_t, w_t, sidewall_angle=sidewall_angle)
         target_fdm = solve_modes(em, 'target', wavelength=wl_t, num_modes=num_modes,
                                   x_resolution=x_resolution, y_resolution=y_resolution,
                                   max_effective_index=max_effective_index)
@@ -354,3 +354,135 @@ def format_table(rows):
     for r in rows:
         lines.append(" | ".join(f"{fmt.format(r[key]):<12}" for key, fmt, _ in columns))
     return "\n".join(lines)
+
+
+def visual_mode_survey(anisotropic_equation, h, w, wavelength, num_modes, modes_to_plot,
+                        x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
+                        component='Ey', simulation_name='mode_survey', verbose=False):
+    """Solve once at (h, w, wavelength) and plot each mode in modes_to_plot for visual review --
+    the human-in-the-loop step for confirming mode identity before a long automated run (mode
+    index is not a stable identifier across geometry -- see EMode_Troubleshooting_Log.md).
+
+    Returns the FDM() result dict (n_eff_tilde, TE_fraction, TM_indices) alongside the plots.
+    """
+    em = launch_session(simulation_name, verbose=verbose)
+    try:
+        setup_waveguide(em, anisotropic_equation, h, w)
+        fdm_result = solve_modes(em, 'survey', wavelength=wavelength, num_modes=num_modes,
+                                  x_resolution=x_resolution, y_resolution=y_resolution,
+                                  max_effective_index=max_effective_index)
+        print(f"=== Survey at h={h}, w={w}, wavelength={wavelength} "
+              f"(all plots below are this SAME geometry, only mode index varies) ===")
+        for mode in modes_to_plot:
+            print(f"-- mode {mode} --  n_eff={fdm_result['n_eff_tilde'][mode].real:.5f}")
+            em.plot(mode=mode, component=component)
+    finally:
+        em.close(save=False)
+    return fdm_result
+
+
+def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, target_points,
+                             tracking_wavelength, num_modes, window=15,
+                             x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
+                             verbose=False):
+    """Track a mode's raw index across a whole set of (h, w) target points, starting from a
+    user-confirmed (start_point, start_mode_idx) -- the automated counterpart to visual_mode_survey.
+
+    Walks nearest-neighbor (always tracking from the closest already-solved point, not always from
+    the original start_point) rather than jumping to every target directly from one anchor, since
+    mode index has been shown to swing widely over even modest geometry changes (TM40 shifted from
+    index 23 to 26 for a single 50nm width step) -- small chained steps keep overlap tracking
+    reliable without needing an enormous window/num_modes for every point. `window`/`num_modes` can
+    still be generous ("moderately brute force") since each individual step is small.
+
+    Resilient: a failed/low-confidence point doesn't stop the rest of the walk, and points reached
+    only through a failed point are walked from their next-nearest solved neighbor instead.
+
+    Returns {point: None or {'mode_idx', 'overlap', 'tracked_from', 'saturated'}} for every point
+    in target_points (start_point is not included -- it's already known).
+    """
+    remaining = [tuple(p) for p in target_points]
+    solved = {tuple(start_point): {'mode_idx': start_mode_idx, 'overlap': 1.0,
+                                    'tracked_from': None, 'saturated': False}}
+
+    while remaining:
+        best = None
+        for p in remaining:
+            for s, info in solved.items():
+                if info is None:
+                    continue
+                d = (p[0] - s[0]) ** 2 + (p[1] - s[1]) ** 2
+                if best is None or d < best[0]:
+                    best = (d, p, s)
+        _, next_point, from_point = best
+        remaining.remove(next_point)
+        from_info = solved[from_point]
+
+        try:
+            result = solve_and_identify(
+                anisotropic_equation, (from_point[0], from_point[1], tracking_wavelength),
+                from_info['mode_idx'], (next_point[0], next_point[1], tracking_wavelength),
+                num_modes=num_modes, window=window, x_resolution=x_resolution,
+                y_resolution=y_resolution, max_effective_index=max_effective_index, verbose=verbose)
+            saturated = result['mode_idx'] >= num_modes - 2
+            info = {'mode_idx': result['mode_idx'], 'overlap': result['overlap'],
+                    'tracked_from': from_point, 'saturated': saturated}
+            if result['overlap'] < 0.8:
+                print(f"  WARNING: low overlap ({result['overlap']:.3f}) tracking "
+                      f"{next_point} from {from_point}")
+            if saturated:
+                print(f"  WARNING: mode_idx={result['mode_idx']} near num_modes={num_modes} "
+                      f"ceiling at {next_point} -- may be truncated, consider raising num_modes")
+        except Exception as e:
+            print(f"  FAILED tracking {next_point} from {from_point}: {repr(e)}")
+            info = None
+
+        solved[next_point] = info
+        print(f"{from_point} -> {next_point}: {info}")
+
+    del solved[tuple(start_point)]
+    return solved
+
+
+def scan_for_crossings(anisotropic_equation, h, w, wavelengths_shg, fund_mode_idx=0,
+                        num_modes_fund=2, num_modes_scan=40, exclude_indices=(),
+                        x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
+                        simulation_name='scan_for_crossings', verbose=False):
+    """Look for a phase-matching crossing with the fundamental across EVERY raw mode index
+    0..num_modes_scan-1 (except exclude_indices) at a single (h, w) point -- a cheap way to
+    discover candidate 'other modes' (e.g. TM02, TM20, ...) without knowing their names ahead of
+    time. Does this in exactly 2 EMode sweep calls total (not num_modes_scan separate find_crossing
+    calls) by reusing the same fund/target wavelength sweeps across all mode-index columns.
+
+    Returns {mode_idx: {'wavelength_shg', 'n_eff'}} for every index that shows a crossing in
+    wavelengths_shg. Candidates found here still need visual confirmation (via visual_mode_survey)
+    before being trusted as a specific named mode -- this only tells you *something* crosses there.
+    """
+    wavelengths_shg = np.asarray(wavelengths_shg)
+    em = launch_session(simulation_name, verbose=verbose)
+    try:
+        setup_waveguide(em, anisotropic_equation, h, w)
+        em.settings(x_resolution=x_resolution, y_resolution=y_resolution, num_modes=num_modes_fund)
+        data_fund = em.sweep(key='wavelength', values=2 * wavelengths_shg, result=['effective_index'])
+        n_fund = np.array(data_fund['effective_index'])[:, fund_mode_idx]
+
+        em.settings(num_modes=num_modes_scan, max_effective_index=max_effective_index)
+        data_target = em.sweep(key='wavelength', values=wavelengths_shg, result=['effective_index'])
+        n_target_all = np.array(data_target['effective_index'])
+    finally:
+        em.close(save=False)
+
+    found = {}
+    for mode_idx in range(num_modes_scan):
+        if mode_idx in exclude_indices:
+            continue
+        n_target = n_target_all[:, mode_idx]
+        delta_n = n_fund - n_target
+        if np.sign(delta_n[0]) == np.sign(delta_n[-1]):
+            continue
+        wl_cross = np.interp(0, delta_n, wavelengths_shg)
+        found[mode_idx] = {
+            'wavelength_shg': wl_cross,
+            'n_eff': np.interp(wl_cross, wavelengths_shg, n_target),
+        }
+    return found
