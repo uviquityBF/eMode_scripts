@@ -356,6 +356,25 @@ def format_table(rows):
     return "\n".join(lines)
 
 
+def save_mode_plot(anisotropic_equation, h_core, w_core, wavelength, mode_idx, num_modes,
+                    file_name, component='Ey', file_type='png',
+                    x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
+                    simulation_name='save_mode_plot', verbose=False):
+    """Solve at (h_core, w_core, wavelength) and save a field plot of `mode_idx` to disk headlessly
+    (em.plot()'s file_name param saves instead of opening the interactive GUI window) -- keeps a
+    visual record of a mode that was successfully matched/analyzed during an automated sweep.
+    """
+    em = launch_session(simulation_name, verbose=verbose)
+    try:
+        setup_waveguide(em, anisotropic_equation, h_core, w_core)
+        em.settings(wavelength=wavelength, num_modes=num_modes, x_resolution=x_resolution,
+                    y_resolution=y_resolution, max_effective_index=max_effective_index)
+        em.FDM()
+        em.plot(mode=mode_idx, component=component, file_name=file_name, file_type=file_type)
+    finally:
+        em.close(save=False)
+
+
 def visual_mode_survey(anisotropic_equation, h, w, wavelength, num_modes, modes_to_plot,
                         x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
                         component='Ey', simulation_name='mode_survey', verbose=False):
@@ -384,7 +403,7 @@ def visual_mode_survey(anisotropic_equation, h, w, wavelength, num_modes, modes_
 def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, target_points,
                              tracking_wavelength, num_modes, window=15,
                              x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
-                             verbose=False):
+                             verbose=False, on_point=None, resume_solved=None):
     """Track a mode's raw index across a whole set of (h, w) target points, starting from a
     user-confirmed (start_point, start_mode_idx) -- the automated counterpart to visual_mode_survey.
 
@@ -398,12 +417,22 @@ def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, t
     Resilient: a failed/low-confidence point doesn't stop the rest of the walk, and points reached
     only through a failed point are walked from their next-nearest solved neighbor instead.
 
+    If given, `on_point(point, info, solved)` is called right after each point is resolved (before
+    moving to the next), so a caller can checkpoint progress to disk during a long walk instead of
+    losing everything if it's interrupted partway through.
+
+    `resume_solved`, if given, pre-seeds already-known points (e.g. reloaded from a checkpoint after
+    an interrupted run) so the walk can continue from where it left off instead of re-solving them.
+    `target_points` should already exclude any point present in `resume_solved`.
+
     Returns {point: None or {'mode_idx', 'overlap', 'tracked_from', 'saturated'}} for every point
     in target_points (start_point is not included -- it's already known).
     """
     remaining = [tuple(p) for p in target_points]
     solved = {tuple(start_point): {'mode_idx': start_mode_idx, 'overlap': 1.0,
                                     'tracked_from': None, 'saturated': False}}
+    if resume_solved:
+        solved.update({tuple(p): info for p, info in resume_solved.items()})
 
     while remaining:
         best = None
@@ -439,6 +468,8 @@ def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, t
 
         solved[next_point] = info
         print(f"{from_point} -> {next_point}: {info}")
+        if on_point is not None:
+            on_point(next_point, info, solved)
 
     del solved[tuple(start_point)]
     return solved
