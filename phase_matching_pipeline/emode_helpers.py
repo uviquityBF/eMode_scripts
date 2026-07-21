@@ -475,6 +475,40 @@ def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, t
     return solved
 
 
+def fund_target_overlap(anisotropic_equation, h_core, w_core, wavelength_shg,
+                         target_mode_idx, fund_mode_idx=0, num_modes_fund=6, num_modes_target=35,
+                         x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
+                         simulation_name='fund_target_overlap', verbose=False):
+    """Spatial overlap between the fundamental (at 2x the SHG wavelength) and the target mode (at
+    the SHG wavelength) at a phase-matching point -- a physically meaningful modal-overlap figure
+    for SHG conversion efficiency, distinct from the mode-TRACKING overlap used elsewhere in this
+    module (that compares the same mode across two different geometries; this compares two
+    different modes at the SAME geometry/phase-matching condition).
+
+    Assumes target_mode_idx is already correct at (h_core, w_core, wavelength_shg) -- e.g. from a
+    phase_matching_row() result -- not re-verified here.
+
+    Returns {'overlap', 'n_eff_fund', 'n_eff_target'}.
+    """
+    em = launch_session(simulation_name, verbose=verbose)
+    try:
+        setup_waveguide(em, anisotropic_equation, h_core, w_core)
+        fund_fdm = solve_modes(em, 'fund', wavelength=2 * wavelength_shg, num_modes=num_modes_fund,
+                                x_resolution=x_resolution, y_resolution=y_resolution,
+                                max_effective_index=max_effective_index)
+        target_fdm = solve_modes(em, 'target', wavelength=wavelength_shg, num_modes=num_modes_target,
+                                  x_resolution=x_resolution, y_resolution=y_resolution,
+                                  max_effective_index=max_effective_index)
+        overlap = abs(em.overlap(label_a='fund', mode_a=fund_mode_idx,
+                                  label_b='target', mode_b=target_mode_idx))
+        n_eff_fund = fund_fdm['n_eff_tilde'][fund_mode_idx].real
+        n_eff_target = target_fdm['n_eff_tilde'][target_mode_idx].real
+    finally:
+        em.close(save=False)
+
+    return {'overlap': overlap, 'n_eff_fund': n_eff_fund, 'n_eff_target': n_eff_target}
+
+
 def scan_for_crossings(anisotropic_equation, h, w, wavelengths_shg, fund_mode_idx=0,
                         num_modes_fund=2, num_modes_scan=40, exclude_indices=(),
                         x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
