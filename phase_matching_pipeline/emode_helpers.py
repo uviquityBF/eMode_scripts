@@ -4,8 +4,32 @@ See EMode_Troubleshooting_Log.md and EMode_Function_Reference.md for the backend
 helpers work around.
 """
 
+import csv
+import os
+from datetime import datetime
+
 import numpy as np
 import emodeconnection as emc
+
+
+def log_failed_point(step, mode_name, h, w, reason, detail='', csv_path='failed_points.csv'):
+    """Append one row to a shared, cross-step log of failed/untrustworthy geometry points, so this
+    history survives a re-run instead of only appearing in that run's live notebook output (which
+    scrolls away and isn't checked automatically on resume).
+
+    `step` is a free-form label for which pipeline stage this came from (e.g. 'walk',
+    'crossing_gradient', 'overlap'); `reason` a short machine-friendly tag (e.g. 'exception',
+    'no_crossing', 'low_overlap', 'saturated'); `detail` any extra free-text (exception repr, etc).
+    """
+    fieldnames = ['timestamp', 'step', 'target_mode_name', 'h_core', 'w_core', 'reason', 'detail']
+    write_header = not (os.path.exists(csv_path) and os.path.getsize(csv_path) > 0)
+    with open(csv_path, 'a', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        if write_header:
+            writer.writeheader()
+        writer.writerow({'timestamp': datetime.now().isoformat(timespec='seconds'),
+                          'step': step, 'target_mode_name': mode_name,
+                          'h_core': h, 'w_core': w, 'reason': reason, 'detail': detail})
 
 
 def launch_session(simulation_name, clear='all', verbose=False):
@@ -417,9 +441,12 @@ def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, t
     Resilient: a failed/low-confidence point doesn't stop the rest of the walk, and points reached
     only through a failed point are walked from their next-nearest solved neighbor instead.
 
-    If given, `on_point(point, info, solved)` is called right after each point is resolved (before
-    moving to the next), so a caller can checkpoint progress to disk during a long walk instead of
-    losing everything if it's interrupted partway through.
+    If given, `on_point(point, info, solved, problems)` is called right after each point is
+    resolved (before moving to the next), so a caller can checkpoint progress to disk during a long
+    walk instead of losing everything if it's interrupted partway through. `problems` is a list of
+    (reason, detail) tuples -- empty if the point tracked cleanly, else one entry per issue
+    ('exception'/'low_overlap'/'saturated') -- for a caller that wants to log failures/warnings
+    persistently (see `log_failed_point`).
 
     `resume_solved`, if given, pre-seeds already-known points (e.g. reloaded from a checkpoint after
     an interrupted run) so the walk can continue from where it left off instead of re-solving them.
@@ -447,6 +474,7 @@ def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, t
         remaining.remove(next_point)
         from_info = solved[from_point]
 
+        problems = []
         try:
             result = solve_and_identify(
                 anisotropic_equation, (from_point[0], from_point[1], tracking_wavelength),
@@ -459,17 +487,20 @@ def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, t
             if result['overlap'] < 0.8:
                 print(f"  WARNING: low overlap ({result['overlap']:.3f}) tracking "
                       f"{next_point} from {from_point}")
+                problems.append(('low_overlap', f"overlap={result['overlap']:.3f}"))
             if saturated:
                 print(f"  WARNING: mode_idx={result['mode_idx']} near num_modes={num_modes} "
                       f"ceiling at {next_point} -- may be truncated, consider raising num_modes")
+                problems.append(('saturated', f"mode_idx={result['mode_idx']}, num_modes={num_modes}"))
         except Exception as e:
             print(f"  FAILED tracking {next_point} from {from_point}: {repr(e)}")
             info = None
+            problems.append(('exception', repr(e)))
 
         solved[next_point] = info
         print(f"{from_point} -> {next_point}: {info}")
         if on_point is not None:
-            on_point(next_point, info, solved)
+            on_point(next_point, info, solved, problems)
 
     del solved[tuple(start_point)]
     return solved
