@@ -4,3 +4,4 @@ field_plots/
 walked_indices_checkpoint.json
 general_pipeline_results_partial.csv
 fund_target_overlap.csv
+failed_points.csv
