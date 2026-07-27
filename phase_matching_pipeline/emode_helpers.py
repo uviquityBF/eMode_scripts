@@ -427,7 +427,7 @@ def visual_mode_survey(anisotropic_equation, h, w, wavelength, num_modes, modes_
 def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, target_points,
                              tracking_wavelength, num_modes, window=15,
                              x_resolution=10.0, y_resolution=10.0, max_effective_index=2.6,
-                             verbose=False, on_point=None, resume_solved=None):
+                             overlap_threshold=0.8, verbose=False, on_point=None, resume_solved=None):
     """Track a mode's raw index across a whole set of (h, w) target points, starting from a
     user-confirmed (start_point, start_mode_idx) -- the automated counterpart to visual_mode_survey.
 
@@ -437,6 +437,12 @@ def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, t
     index 23 to 26 for a single 50nm width step) -- small chained steps keep overlap tracking
     reliable without needing an enormous window/num_modes for every point. `window`/`num_modes` can
     still be generous ("moderately brute force") since each individual step is small.
+
+    A step whose overlap falls below `overlap_threshold` is REJECTED outright (treated the same as
+    an exception: solved as None) rather than accepted with a warning -- a low-overlap match likely
+    tracked a different physical mode, not a true continuation. Rejected points are automatically
+    retried on a later run (the resume logic only skips points that solved successfully) and
+    excluded from Step 5 until they pass.
 
     Resilient: a failed/low-confidence point doesn't stop the rest of the walk, and points reached
     only through a failed point are walked from their next-nearest solved neighbor instead.
@@ -482,16 +488,19 @@ def walk_mode_across_points(anisotropic_equation, start_point, start_mode_idx, t
                 num_modes=num_modes, window=window, x_resolution=x_resolution,
                 y_resolution=y_resolution, max_effective_index=max_effective_index, verbose=verbose)
             saturated = result['mode_idx'] >= num_modes - 2
-            info = {'mode_idx': result['mode_idx'], 'overlap': result['overlap'],
-                    'tracked_from': from_point, 'saturated': saturated}
-            if result['overlap'] < 0.8:
-                print(f"  WARNING: low overlap ({result['overlap']:.3f}) tracking "
-                      f"{next_point} from {from_point}")
-                problems.append(('low_overlap', f"overlap={result['overlap']:.3f}"))
-            if saturated:
-                print(f"  WARNING: mode_idx={result['mode_idx']} near num_modes={num_modes} "
-                      f"ceiling at {next_point} -- may be truncated, consider raising num_modes")
-                problems.append(('saturated', f"mode_idx={result['mode_idx']}, num_modes={num_modes}"))
+            if result['overlap'] < overlap_threshold:
+                print(f"  REJECTED: overlap {result['overlap']:.3f} below threshold "
+                      f"{overlap_threshold} tracking {next_point} from {from_point}")
+                problems.append(('low_overlap', f"overlap={result['overlap']:.3f}, "
+                                                 f"threshold={overlap_threshold}"))
+                info = None
+            else:
+                info = {'mode_idx': result['mode_idx'], 'overlap': result['overlap'],
+                        'tracked_from': from_point, 'saturated': saturated}
+                if saturated:
+                    print(f"  WARNING: mode_idx={result['mode_idx']} near num_modes={num_modes} "
+                          f"ceiling at {next_point} -- may be truncated, consider raising num_modes")
+                    problems.append(('saturated', f"mode_idx={result['mode_idx']}, num_modes={num_modes}"))
         except Exception as e:
             print(f"  FAILED tracking {next_point} from {from_point}: {repr(e)}")
             info = None
