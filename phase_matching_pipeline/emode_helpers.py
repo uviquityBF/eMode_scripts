@@ -407,7 +407,11 @@ def format_table(rows):
     header = " | ".join(f"{label:<12}" for _, _, label in columns)
     lines = [header, "-" * len(header)]
     for r in rows:
-        lines.append(" | ".join(f"{fmt.format(r[key]):<12}" for key, fmt, _ in columns))
+        # a gradient column can be None if mode_gradient_width_height's overlap_threshold check
+        # rejected the underlying perturbation as unreliable (see emode_helpers.py) -- show 'n/a'
+        # rather than crashing on NoneType.__format__
+        lines.append(" | ".join((f"{fmt.format(r[key]):<12}" if r[key] is not None else f"{'n/a':<12}")
+                                 for key, fmt, _ in columns))
     return "\n".join(lines)
 
 
