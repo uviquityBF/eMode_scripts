@@ -1,0 +1,19 @@
+Fit parameters for RUN_TAG='ALN_am135comsol', 125 points (45 excluded via EXCLUDED_POINTS)
+(regenerated 2026-08-25 from the archived general_pipeline_results.csv when this run was moved to runs/ALN_am135comsol/ -- not originally saved to a file, only ever printed to the live notebook's cell output)
+
+=== Index surfaces (nm in, dimensionless index out) ===
+[RMS residual 8.03e-03]
+n_TM00(WL, h, w) = -2.00883e-07*w^2 +5.19931e-09*h*w -8.14441e-07*h^2 +2.17264e-07*WL*w +7.71039e-07*WL*h +4.11296e-06*WL^2 +0.000251401*w +0.000676027*h -0.00539972*WL +3.29076
+
+[RMS residual 2.82e-03]
+n_TM04(WL, h, w) = -9.78606e-08*w^2 -7.37807e-07*h*w +8.32338e-06*h^2 +3.86102e-06*WL*w -0.000161603*WL*h +0.000647053*WL^2 -0.000444004*w +0.0342062*h -0.253843*WL +26.1444
+
+[RMS residual 2.90e-03]
+n_TM40(WL, h, w) = +1.07388e-05*w^2 -1.25508e-05*h*w +1.99946e-06*h^2 -0.000126603*WL*w +5.97361e-05*WL*h +0.000350166*WL^2 +0.0285563*w -0.0107671*h -0.149363*WL +17.0001
+
+=== Phase-matching wavelength surfaces (nm in, nm out) ===
+[RMS residual 1.39e-01]
+WL_pm_TM04(h, w) = +6.52974e-06*w^2 -3.2507e-05*h*w +0.000114579*h^2 -0.00107169*w +0.139289*h +169.715
+
+[RMS residual 6.36e-01]
+WL_pm_TM40(h, w) = -3.83772e-05*w^2 -0.000396962*h*w +0.000354193*h^2 +0.394617*w -0.118205*h +143.504

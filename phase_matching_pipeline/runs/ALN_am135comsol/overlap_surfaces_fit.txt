@@ -1,0 +1,10 @@
+Fit parameters for RUN_TAG='ALN_am135comsol'
+(regenerated 2026-08-25, see phase_matching_surfaces_fit.txt for context)
+
+=== overlap_TM04(h, w) -- fit from 105 points ===
+[RMS residual 5.96e-04]
+overlap_TM04(h, w) = +4.48304e-09*w^2 +3.29348e-08*h*w +1.27745e-06*h^2 -1.91463e-05*w -0.000973602*h +0.194813
+
+=== overlap_TM40(h, w) -- fit from 20 points ===
+[RMS residual 3.64e-04]
+overlap_TM40(h, w) = +3.59107e-08*w^2 +6.81137e-08*h*w +1.13931e-08*h^2 -7.08187e-05*w -5.09392e-05*h +0.0323958
