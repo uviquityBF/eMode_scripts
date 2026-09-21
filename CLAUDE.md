@@ -14,6 +14,22 @@ via git — `git pull` before starting work, `pip install -r requirements.txt` i
   `emode_helpers.py` so those notebooks still run if reopened.
 - `legacy_scripts/` — everything predating this Claude-assisted work (the original `AlN_2D_*`
   scripts/notebooks etc.). Not maintained, kept for reference only.
+- `loss_vs_dimensions/` — separate deliverable: fundamental-TM00 propagation loss vs. core
+  height/width. `sweep_loss_vs_dimensions.py` solves the lossless mode once per (h, w), gets
+  native-EMode sidewall scattering loss (`roughness_rms`/`correlation_length` + `em.scattering()`
+  — each result row records the roughness/correlation values that produced it, so the
+  checkpoint auto-invalidates old points if those constants change), and exports the mode's
+  field data (Ex/Ey/Ez/Sz + geometry) for two independent, EMode-free post-processing models
+  that never need another EMode call to re-explore assumptions: `absorption_model.py` (arbitrary
+  sidewall-/interface-localized non-uniform material-absorption profiles, pure numpy) and
+  `scattering_model.py` (a Payne-Lacey-*adapted* sidewall-scattering estimate computed from the
+  real exported mode profile rather than Payne & Lacey's idealized 1D-slab formulas — its
+  overall absolute scale needs calibrating against the EMode-native value before trusting
+  absolute numbers; see its module docstring). Imports `emode_helpers.py` from
+  `../phase_matching_pipeline/`. `emode_export.py`'s field-extraction shapes/units are confirmed
+  against a live `inspect_emode_outputs.py` run (see its module docstring); only
+  `build_core_mask_from_geometry`'s trapezoid convention was cross-checked visually, not against
+  EMode's own permittivity export.
 - `.eph` simulation files are gitignored everywhere in the repo (pattern has no leading slash, so it
   applies at any depth) — keep them out of commits regardless of which folder they land in.
 

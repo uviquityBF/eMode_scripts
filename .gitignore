@@ -5,3 +5,9 @@ walked_indices_checkpoint.json
 general_pipeline_results_partial.csv
 fund_target_overlap.csv
 failed_points.csv
+field_exports/
+loss_vs_dimensions_results.csv
+loss_vs_dimensions.png
+loss_by_mechanism.png
+geometry_check_shapes.png
+geometry_check_index.png
