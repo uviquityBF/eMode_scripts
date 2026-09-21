@@ -1,0 +1,18 @@
+Fit parameters for RUN_TAG='ALN_avgLibrary82026', 36 points (4 excluded via EXCLUDED_POINTS)
+
+=== Index surfaces (nm in, dimensionless index out) ===
+[RMS residual 5.23e-03]
+n_TM00(WL, h, w) = -4.35653e-07*w^2 -1.67066e-07*h*w -1.81966e-07*h^2 +3.75032e-07*WL*w -4.91496e-06*WL*h +9.81933e-06*WL^2 +0.000495122*w +0.00291757*h -0.00881053*WL +3.62833
+
+[RMS residual 1.19e-02]
+n_TM04(WL, h, w) = -1.5388e-07*w^2 -1.7811e-05*h*w +0.000220178*h^2 +0.000112966*WL*w -0.00217588*WL*h +0.00551049*WL^2 -0.0189178*w +0.347036*h -1.78718*WL +148.04
+
+[RMS residual 6.25e-04]
+n_TM40(WL, h, w) = -2.29075e-05*w^2 +3.10252e-06*h*w -2.1763e-07*h^2 +0.000175816*WL*w -2.11347e-05*WL*h -0.00028637*WL^2 -0.0226543*w +0.00409422*h +0.0640566*WL -1.08857
+
+=== Phase-matching wavelength surfaces (nm in, nm out) ===
+[RMS residual 1.30e+00]
+WL_pm_TM04(h, w) = -2.89942e-05*w^2 +0.000625508*h*w -0.00230218*h^2 -0.195923*w +1.53906*h -35.3315
+
+[RMS residual 9.51e-02]
+WL_pm_TM40(h, w) = +0.000284183*w^2 -0.000441623*h*w +0.000223474*h^2 +0.153168*w -0.0109548*h +169.775

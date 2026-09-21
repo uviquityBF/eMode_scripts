@@ -1,0 +1,9 @@
+Fit parameters for RUN_TAG='ALN_avgLibrary82026'
+
+=== overlap_TM04(h, w) -- fit from 27 points ===
+[RMS residual 1.31e-03]
+overlap_TM04(h, w) = -1.36842e-08*w^2 +6.29659e-07*h*w +6.4557e-05*h^2 -0.000210818*w -0.0466018*h +8.40929
+
+=== overlap_TM40(h, w) -- fit from 9 points ===
+[RMS residual 2.77e-04]
+overlap_TM40(h, w) = +3.07874e-08*w^2 -1.24579e-07*h*w +1.10461e-05*h^2 +4.4983e-05*w -0.0078658*h +1.39564
