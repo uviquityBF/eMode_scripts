@@ -25,7 +25,14 @@ via git — `git pull` before starting work, `pip install -r requirements.txt` i
   `scattering_model.py` (a Payne-Lacey-*adapted* sidewall-scattering estimate computed from the
   real exported mode profile rather than Payne & Lacey's idealized 1D-slab formulas — its
   overall absolute scale needs calibrating against the EMode-native value before trusting
-  absolute numbers; see its module docstring). Imports `emode_helpers.py` from
+  absolute numbers; see its module docstring — `calibrate_scattering.py` fits this
+  `calibration_factor` by least-squares against every point in a completed sweep's
+  `scattering_vertical_dB_per_m` (the sidewall-only component; `em.scattering()`'s
+  `roughness_rms`/`correlation_length` are `[vertical (sidewall), horizontal (top/bottom)]` per
+  EMode's docs, and `scattering_sum == scattering_vertical_edges + scattering_horizontal_edges`
+  — confirmed live, so comparing the adapted sidewall-only model against the combined total
+  would be an apples-to-oranges mismatch), reports a per-point table, and persists the fit to
+  `scattering_calibration.json` for reuse). Imports `emode_helpers.py` from
   `../phase_matching_pipeline/`. `emode_export.py`'s field-extraction shapes/units are confirmed
   against a live `inspect_emode_outputs.py` run (see its module docstring); only
   `build_core_mask_from_geometry`'s trapezoid convention was cross-checked visually, not against

@@ -55,6 +55,14 @@ FREE_SPACE_IMPEDANCE = 376.730313668  # [Ohm]
 NM_TO_M = 1e-9
 
 
+def sellmeier_n(eq_str, wavelength_nm):
+    """Evaluate an EMode-style Sellmeier equation string (as passed to add_material's
+    refractive_index_equation, e.g. sweep_loss_vs_dimensions.EQ_O) at wavelength_nm [nm] --
+    add_material expects wavelength in microns (wavelength_unit='um'), hence the /1000.
+    """
+    return eval(eq_str, {}, {'x': wavelength_nm / 1000.0})
+
+
 def sidewall_boundary_intensity(core_mask, Ex, Ey, Ez):
     """|E|^2 at every point along BOTH sidewalls (left and right edge of the core in each row
     that has core), plus how many boundary points were found -- for the line-integral in
@@ -75,6 +83,34 @@ def sidewall_boundary_intensity(core_mask, Ex, Ey, Ez):
                   + np.abs(Ez[row, col]) ** 2)
             intensities.append(e2)
     return np.array(intensities)
+
+
+def top_bottom_boundary_intensity(core_mask, Ex, Ey, Ez):
+    """|E|^2 at the TOP and BOTTOM edges of the core (max/min row with core in each column),
+    returned SEPARATELY since they interface different surrounding materials -- the top surface
+    sees the TopClad material, the bottom sees the substrate -- with generally different
+    refractive indices. Same total-intensity simplification as sidewall_boundary_intensity.
+
+    Grid convention: row index increases with y (confirmed in emode_export.py), and the core
+    sits directly on the substrate (SUBSTRATE_HEIGHT), so the SMALLEST-row core pixel in a
+    column is the bottom (substrate) edge and the LARGEST-row one is the top (TopClad) edge.
+
+    Returns (top_e2, bottom_e2), each a 1D array of |E|^2 values, one per core-containing column.
+    """
+    ny, nx = core_mask.shape
+    rows = np.arange(ny)
+    top_vals, bottom_vals = [], []
+    for col in range(nx):
+        in_core = core_mask[:, col]
+        if not in_core.any():
+            continue
+        core_rows = rows[in_core]
+        bottom_row, top_row = core_rows.min(), core_rows.max()
+        bottom_vals.append(np.abs(Ex[bottom_row, col]) ** 2 + np.abs(Ey[bottom_row, col]) ** 2
+                            + np.abs(Ez[bottom_row, col]) ** 2)
+        top_vals.append(np.abs(Ex[top_row, col]) ** 2 + np.abs(Ey[top_row, col]) ** 2
+                         + np.abs(Ez[top_row, col]) ** 2)
+    return np.array(top_vals), np.array(bottom_vals)
 
 
 def guided_power(Sz, dx_nm, dy_nm):
@@ -143,7 +179,8 @@ def payne_lacey_sidewall_scattering_loss_dB_per_m(
 def compute_scattering_loss(export_data, n_core, n_clad, sigma_rms_nm, correlation_length_nm,
                              calibration_factor=1.0, n_theta=200):
     """One-call convenience: pull everything this needs out of an npz export (as loaded by
-    np.load -- an NpzFile or an already-materialized dict both work) and compute the loss.
+    np.load -- an NpzFile or an already-materialized dict both work) and compute the SIDEWALL
+    (vertical-edge) loss only. See compute_total_scattering_loss for vertical + horizontal.
     """
     return payne_lacey_sidewall_scattering_loss_dB_per_m(
         export_data['x'], export_data['y'], export_data['core_mask'],
@@ -151,3 +188,78 @@ def compute_scattering_loss(export_data, n_core, n_clad, sigma_rms_nm, correlati
         float(export_data['n_eff']), float(export_data['wavelength_pump']),
         n_core, n_clad, sigma_rms_nm, correlation_length_nm,
         calibration_factor=calibration_factor, n_theta=n_theta)
+
+
+N_SUBSTRATE_DEFAULT = 1.776  # sapphire (Al2O3) ordinary index near 450 nm -- approximate
+# literature constant, not derived from a Sellmeier fit like n_core; override if you have a
+# better value for your actual substrate material/wavelength.
+
+
+def payne_lacey_top_bottom_scattering_loss_dB_per_m(
+        x, y, core_mask, Ex, Ey, Ez, Sz, n_eff, wavelength_nm, n_core, n_top_clad, n_substrate,
+        sigma_rms_nm, correlation_length_nm, calibration_factor=1.0, n_theta=200):
+    """Top+bottom (horizontal-edge) scattering loss [dB/m] -- same physical framework as
+    payne_lacey_sidewall_scattering_loss_dB_per_m (see module docstring), applied to the core's
+    top surface (interfacing n_top_clad) and bottom surface (interfacing n_substrate)
+    SEPARATELY -- generally different materials (e.g. SiO2 top cladding vs. sapphire substrate)
+    with different index contrast against the core -- then summed. Uses the SAME
+    sigma_rms_nm/correlation_length_nm for both top and bottom, matching EMode's own
+    roughness_rms/correlation_length convention (one 'horizontal' value covers both, not a
+    separate top/bottom pair).
+    """
+    dx_nm = float(x[1] - x[0])
+    dy_nm = float(y[1] - y[0])
+    k0 = 2 * np.pi / (wavelength_nm * NM_TO_M)
+    beta = k0 * n_eff
+
+    top_e2, bottom_e2 = top_bottom_boundary_intensity(core_mask, Ex, Ey, Ez)
+    if top_e2.size == 0 or bottom_e2.size == 0:
+        raise ValueError("no top/bottom boundary points found -- check core_mask")
+    top_integral = top_e2.sum() * dx_nm * NM_TO_M  # line integral ds ~ dx per point
+    bottom_integral = bottom_e2.sum() * dx_nm * NM_TO_M
+    P_g = guided_power(Sz, dx_nm, dy_nm)
+
+    def radiated_power(n_clad_side, boundary_integral):
+        S_W = angular_scattering_integral(beta, n_clad_side, k0, sigma_rms_nm,
+                                           correlation_length_nm, n_theta=n_theta)
+        return (calibration_factor * (k0 ** 3) / (8 * np.pi * FREE_SPACE_IMPEDANCE)
+                * (n_core ** 2 - n_clad_side ** 2) ** 2 * boundary_integral * S_W)
+
+    P_rad_per_L = radiated_power(n_top_clad, top_integral) + radiated_power(n_substrate, bottom_integral)
+    alpha_per_m = P_rad_per_L / P_g
+    return 10 * np.log10(np.e) * alpha_per_m
+
+
+def payne_lacey_total_scattering_loss_dB_per_m(
+        x, y, core_mask, Ex, Ey, Ez, Sz, n_eff, wavelength_nm, n_core, n_clad, n_substrate,
+        sigma_vertical_nm, Lc_vertical_nm, sigma_horizontal_nm, Lc_horizontal_nm,
+        calibration_factor_vertical=1.0, calibration_factor_horizontal=1.0, n_theta=200):
+    """Sidewall (vertical) + top/bottom (horizontal) scattering, summed -- "total scatter."
+    Two independent calibration factors since EMode's own vertical/horizontal edge calculations
+    are fit against separately (see calibrate_scattering.py) and needn't share one constant.
+    """
+    vertical = payne_lacey_sidewall_scattering_loss_dB_per_m(
+        x, y, core_mask, Ex, Ey, Ez, Sz, n_eff, wavelength_nm, n_core, n_clad,
+        sigma_vertical_nm, Lc_vertical_nm, calibration_factor=calibration_factor_vertical,
+        n_theta=n_theta)
+    horizontal = payne_lacey_top_bottom_scattering_loss_dB_per_m(
+        x, y, core_mask, Ex, Ey, Ez, Sz, n_eff, wavelength_nm, n_core, n_clad, n_substrate,
+        sigma_horizontal_nm, Lc_horizontal_nm, calibration_factor=calibration_factor_horizontal,
+        n_theta=n_theta)
+    return vertical + horizontal
+
+
+def compute_total_scattering_loss(export_data, n_core, n_clad, n_substrate,
+                                   sigma_vertical_nm, Lc_vertical_nm,
+                                   sigma_horizontal_nm, Lc_horizontal_nm,
+                                   calibration_factor_vertical=1.0,
+                                   calibration_factor_horizontal=1.0, n_theta=200):
+    """One-call convenience: total (vertical + horizontal) scattering loss from an npz export."""
+    return payne_lacey_total_scattering_loss_dB_per_m(
+        export_data['x'], export_data['y'], export_data['core_mask'],
+        export_data['Ex'], export_data['Ey'], export_data['Ez'], export_data['Sz'],
+        float(export_data['n_eff']), float(export_data['wavelength_pump']),
+        n_core, n_clad, n_substrate, sigma_vertical_nm, Lc_vertical_nm,
+        sigma_horizontal_nm, Lc_horizontal_nm,
+        calibration_factor_vertical=calibration_factor_vertical,
+        calibration_factor_horizontal=calibration_factor_horizontal, n_theta=n_theta)

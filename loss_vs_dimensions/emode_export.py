@@ -23,18 +23,28 @@ em.plot(component='Index') for one point before trusting it broadly.
 import numpy as np
 
 
-def extract_scattering_loss_dB_per_m(em, shape_name='core', mode_idx=0):
-    """Native EMode sidewall-scattering loss for one mode.
+def extract_scattering_components_dB_per_m(em, shape_name='core', mode_idx=0):
+    """Native EMode scattering loss for one mode, split by edge orientation.
 
-    em.scattering(shape=shape_name) must already have been called this solve.
-    scattering_sum's *structure* (length-num_modes, indexed by mode_idx) is confirmed; its
-    UNITS are not (see module docstring) -- treat the dB/m label here as provisional until
-    checked against report()'s printed loss dB/m column.
+    em.scattering(shape=shape_name) must already have been called this solve. Per EMode's docs
+    (docs.emodephotonix.com/emodeguide/setup.html, on shape()'s roughness_rms/correlation_length
+    params): "a list of 2 applies the first value to all vertical interfaces and the second
+    value to all horizontal interfaces" -- confirmed against a live run that
+    scattering_sum == scattering_vertical_edges + scattering_horizontal_edges exactly (1247.24 =
+    498.64 + 748.61 for mode 0), and scattering_sum matches report()'s printed "core scattering
+    (dB/m)" column, so ALL THREE are confirmed to already be in dB/m.
+
+    Returns {'sum', 'vertical', 'horizontal'} (dB/m) for mode_idx -- 'vertical' is the
+    sidewall-only contribution (comparable to scattering_model.py's Payne-Lacey adaptation,
+    which only models sidewalls); 'sum' is EMode's total (vertical + horizontal combined).
     """
     shape = em.get_shape(key=shape_name)
     metadata = shape['metadata'] if isinstance(shape, dict) else shape.metadata
-    scattering_sum = np.asarray(metadata['scattering_sum'])
-    return float(scattering_sum[mode_idx])
+    return {
+        'sum': float(np.asarray(metadata['scattering_sum'])[mode_idx]),
+        'vertical': float(np.asarray(metadata['scattering_vertical_edges'])[mode_idx]),
+        'horizontal': float(np.asarray(metadata['scattering_horizontal_edges'])[mode_idx]),
+    }
 
 
 def _get_field_entry(fields_dict, wavelength):

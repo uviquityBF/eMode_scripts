@@ -6,8 +6,13 @@ general_pipeline_results_partial.csv
 fund_target_overlap.csv
 failed_points.csv
 field_exports/
+field_profile_plots/
 loss_vs_dimensions_results.csv
+loss_vs_dimensions_results.csv.bak
+loss_vs_dimensions_results.csv.schema_backup
+scattering_calibration.json
 loss_vs_dimensions.png
+loss_vs_dimensions_loglog.png
 loss_by_mechanism.png
 geometry_check_shapes.png
 geometry_check_index.png
