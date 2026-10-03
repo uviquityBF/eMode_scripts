@@ -331,6 +331,36 @@ def loss_grid(rows, assumptions, quantity='total'):
     return np.array(heights), np.array(widths), Z
 
 
+def save_loss_grid_csv(heights, widths, Z, csv_path):
+    """Write one (heights, widths, Z) grid -- as returned by loss_grid() -- to a matrix CSV:
+    first row is the width values, first column is the height values, each cell is the loss
+    [dB/cm] at that (h, w). A missing (h, w) combination (NaN in Z) is written as an empty cell.
+    """
+    with open(csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['h_core_nm \\ w_core_nm'] + [f'{w:g}' for w in widths])
+        for h, row in zip(heights, Z):
+            writer.writerow([f'{h:g}'] + ['' if np.isnan(v) else f'{v:.6g}' for v in row])
+
+
+def export_loss_csvs(rows, assumptions, out_dir='loss_csv_exports'):
+    """Write scattering/absorption/total loss [dB/cm] vs. (h, w) each to their own matrix CSV
+    (see save_loss_grid_csv) in `out_dir` -- the same data behind plot_totals()'s three panels
+    and plot_loss_surface(), for use outside this notebook (Excel, another script, etc.).
+    """
+    os.makedirs(out_dir, exist_ok=True)
+    paths = {}
+    for quantity, filename in (('scattering', 'scattering_vs_hw.csv'),
+                                ('absorption', 'absorption_vs_hw.csv'),
+                                ('total', 'total_vs_hw.csv')):
+        heights, widths, Z = loss_grid(rows, assumptions, quantity=quantity)
+        csv_path = os.path.join(out_dir, filename)
+        save_loss_grid_csv(heights, widths, Z, csv_path)
+        paths[quantity] = csv_path
+        print(f"Saved {csv_path}")
+    return paths
+
+
 def plot_loss_surface(rows, assumptions, quantity='total'):
     """3D surface of loss [dB/cm] vs. (h, w) -- plotted directly off the sweep's regular grid,
     no curve/surface fitting (unlike the phase-matching pipeline's Hermite fit, which combines
