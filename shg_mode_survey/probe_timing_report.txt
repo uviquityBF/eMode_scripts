@@ -1,0 +1,59 @@
+Probe: ridge h=350.0 w=400.0, AlN on sapphire, SiO2 clad
+--- pump 450nm bc=0A res=10: solve 0.9s, get_fields 0.8s, field array (9, 6, 200, 234) complex128, names ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz'], grid flags pml=False exp=False bc=False
+   x [-995.0,995.0] n=200 first=[-995. -985. -975.], y [5.0,2335.0] n=234
+   mode0 power conventions: intSz=1.0000e-18  0.5Re(ExH*)=5.0000e-19  paraxial n|Et|^2/2eta0=4.7716e-19  ratios Sz/EH=2.0000 Sz/parax=2.0958  max|Ey|=5.868e-02 phase(Ez/Ey) at max=1.57
+   mode  0: n_eff=2.05599+0.00e+00j  TE_frac=0.001  Ey-parity=+1.00
+   mode  1: n_eff=1.84760+0.00e+00j  TE_frac=0.020  Ey-parity=+1.00
+   mode  2: n_eff=1.77795+0.00e+00j  TE_frac=0.970  Ey-parity=+1.00
+   mode  3: n_eff=1.77257+0.00e+00j  TE_frac=0.999  Ey-parity=+1.00
+   mode  4: n_eff=1.76216+0.00e+00j  TE_frac=0.001  Ey-parity=+1.00
+   mode  5: n_eff=1.74776+0.00e+00j  TE_frac=1.000  Ey-parity=+1.00
+--- pump 450nm bc=0S res=10: solve 0.9s, get_fields 0.8s, field array (9, 6, 200, 234) complex128, names ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz'], grid flags pml=False exp=False bc=False
+   x [-995.0,995.0] n=200 first=[-995. -985. -975.], y [5.0,2335.0] n=234
+   mode0 power conventions: intSz=1.0000e-18  0.5Re(ExH*)=5.0000e-19  paraxial n|Et|^2/2eta0=4.7628e-19  ratios Sz/EH=2.0000 Sz/parax=2.0996  max|Ey|=3.838e-03 phase(Ez/Ey) at max=-1.57
+   mode  0: n_eff=1.98387+0.00e+00j  TE_frac=0.998  Ey-parity=-1.00
+   mode  1: n_eff=1.88370+0.00e+00j  TE_frac=0.027  Ey-parity=-1.00
+   mode  2: n_eff=1.81509+0.00e+00j  TE_frac=0.983  Ey-parity=-1.00
+   mode  3: n_eff=1.77603+0.00e+00j  TE_frac=1.000  Ey-parity=-1.00
+   mode  4: n_eff=1.76167+0.00e+00j  TE_frac=1.000  Ey-parity=-1.00
+   mode  5: n_eff=1.75230+0.00e+00j  TE_frac=0.001  Ey-parity=-1.00
+--- pump 450nm bc=00 res=10: solve 1.5s, get_fields 0.8s, field array (9, 6, 200, 234) complex128, names ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz'], grid flags pml=False exp=False bc=False
+   x [-995.0,995.0] n=200 first=[-995. -985. -975.], y [5.0,2335.0] n=234
+   mode0 power conventions: intSz=1.0000e-18  0.5Re(ExH*)=5.0000e-19  paraxial n|Et|^2/2eta0=4.7716e-19  ratios Sz/EH=2.0000 Sz/parax=2.0958  max|Ey|=5.868e-02 phase(Ez/Ey) at max=1.57
+   mode  0: n_eff=2.05599+0.00e+00j  TE_frac=0.001  Ey-parity=+1.00
+   mode  1: n_eff=1.98387+0.00e+00j  TE_frac=0.998  Ey-parity=-1.00
+   mode  2: n_eff=1.88370+0.00e+00j  TE_frac=0.028  Ey-parity=-1.00
+   mode  3: n_eff=1.84760+0.00e+00j  TE_frac=0.020  Ey-parity=+1.00
+   mode  4: n_eff=1.81509+0.00e+00j  TE_frac=0.983  Ey-parity=-1.00
+   mode  5: n_eff=1.77795+0.00e+00j  TE_frac=0.970  Ey-parity=+1.00
+--- SH 225nm bc=0A res=10.0 num_modes=15 max_n=2.1560: solve 1.0s, n_eff range [1.9598, 2.3663]
+--- SH detail: solve 0.0s, get_fields 2.2s, field array (9, 15, 200, 234) complex128, names ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz'], grid flags pml=False exp=False bc=False
+   x [-995.0,995.0] n=200 first=[-995. -985. -975.], y [5.0,2335.0] n=234
+   mode0 power conventions: intSz=1.0000e-18  0.5Re(ExH*)=5.0000e-19  paraxial n|Et|^2/2eta0=4.7528e-19  ratios Sz/EH=2.0000 Sz/parax=2.1040  max|Ey|=5.143e-03 phase(Ez/Ey) at max=1.57
+   mode  0: n_eff=2.36629+0.00e+00j  TE_frac=0.997  Ey-parity=+1.00
+   mode  1: n_eff=2.31058+0.00e+00j  TE_frac=0.016  Ey-parity=+1.00
+   mode  2: n_eff=2.29387+0.00e+00j  TE_frac=0.004  Ey-parity=+1.00
+   mode  3: n_eff=2.27789+0.00e+00j  TE_frac=0.991  Ey-parity=+1.00
+   mode  4: n_eff=2.23039+0.00e+00j  TE_frac=0.025  Ey-parity=+1.00
+   mode  5: n_eff=2.20735+0.00e+00j  TE_frac=0.973  Ey-parity=+1.00
+   mode  6: n_eff=2.15803+0.00e+00j  TE_frac=0.115  Ey-parity=+1.00
+   mode  7: n_eff=2.15184+0.00e+00j  TE_frac=0.552  Ey-parity=+1.00
+   mode  8: n_eff=2.14983+0.00e+00j  TE_frac=0.490  Ey-parity=+1.00
+   mode  9: n_eff=2.14065+0.00e+00j  TE_frac=0.868  Ey-parity=+1.00
+   mode 10: n_eff=2.10381+0.00e+00j  TE_frac=0.010  Ey-parity=+1.00
+   mode 11: n_eff=2.04435+0.00e+00j  TE_frac=0.889  Ey-parity=+1.00
+   mode 12: n_eff=2.03141+0.00e+00j  TE_frac=0.134  Ey-parity=+1.00
+   mode 13: n_eff=1.98466+0.00e+00j  TE_frac=0.978  Ey-parity=+1.00
+   mode 14: n_eff=1.95980+0.00e+00j  TE_frac=0.101  Ey-parity=+1.00
+   SH grid identical to pump '0A' grid: True
+--- SH 225nm bc=0A res=10.0 num_modes=30 max_n=2.1560: solve 2.5s, n_eff range [1.8494, 2.4195]
+--- SH 225nm bc=0A res=5.0 num_modes=15 max_n=2.1560: solve 3.7s, n_eff range [1.9527, 2.3662]
+--- SH 225nm bc=0A res=5.0 num_modes=30 max_n=2.1560: solve 9.7s, n_eff range [1.8494, 2.4193]
+--- get_fields(['permittivity']) failed: ArgumentError("Invalid field name(s) in key=['permittivity']; must be one or more of ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz']")
+--- get_fields(['eps']) failed: ArgumentError("Invalid field name(s) in key=['eps']; must be one or more of ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz']")
+--- get_fields(['Index']) failed: ArgumentError("Invalid field name(s) in key=['Index']; must be one or more of ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz']")
+--- effective_area(): 12.1s -> [0.07689932 0.07949307 0.0732262  0.08289632 0.09146517 0.07550337
+ 0.06534128 0.08342006 0.10401277 0.09640626 0.0902828  0.09541977
+ 0.10739453 0.09990751 0.09376729 0.08638086 0.11642886 0.11175072
+ 0.14840114 0.86583936 0.96342939 0.87135509 0.87557488 0.89038411
+ 0.79306412 0.93372179 0.21013954 0.87863078 0.91111114 0.90007624]

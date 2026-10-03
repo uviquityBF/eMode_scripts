@@ -1,0 +1,2 @@
+fingerprint,family,params,status,n_pump_modes,n_crossings,n_refined,seconds,timestamp,error
+cde1f4a6155a,ridge,"{""sidewall_angle"": 5.0, ""substrate_height"": 1000.0, ""topclad_height"": 800.0, ""substrate_material"": ""Al2O3"", ""topclad_material"": ""SiO2"", ""core_eq_o"": ""(1+2.8032/(1-0.015287/x**2)+0.36335/(1-0.036095/x**2)-33508000/(1+367200000/x**2))**0.5"", ""core_eq_e"": ""(1+0.017061/(1-0.043855/x**2)+3.1976/(1-0.022642/x**2)-57269000/(1-74226000/x**2))**0.5"", ""core_chi2"": ""AlN"", ""h_core"": 350.0, ""w_core"": 400.0}",ok,5,29,8,348.5,2026-10-03T17:02:52,

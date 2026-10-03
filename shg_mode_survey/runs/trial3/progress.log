@@ -1,0 +1,7 @@
+[16:57:04] run 'trial3' (survey_config): 1 geometries, 0 already done, 1 to do
+[16:57:04] [1/1] ridge h=350 w=400 sw=5  (cde1f4a6155a)
+[16:57:57]   pumps (33s): TM00[A] 2.0560, TE00[S] 1.9839 | TM10[S] 1.8837, TM01[A] 1.8476, TE01[S] 1.8151
+[17:01:45]   SH scan (228s): 100 SH tracks, 29 crossings; WARNING SH n_eff window too narrow at 9 group-steps (raise num_sh_modes)
+[17:02:52]   refine (67s): 8 refined, 21 screened-only
+[17:02:52]   done in 348s; best: TM10->TM61 @ 221.62 nm, NCE 14.9 %/W/cm^2 (refined)
+[17:02:52]   elapsed 5.8 min, est. remaining 0.0 min

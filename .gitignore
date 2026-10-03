@@ -17,3 +17,7 @@ loss_vs_dimensions_loglog.png
 loss_by_mechanism.png
 geometry_check_shapes.png
 geometry_check_index.png
+shg_mode_survey/runs/*/exports/
+shg_mode_survey/runs/*/traces/
+shg_mode_survey/probe_timing.log
+shg_mode_survey/survey_stdout*.log
