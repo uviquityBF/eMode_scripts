@@ -1,0 +1,54 @@
+# SHG mode survey — how to run
+
+Design and physics: [PLAN.md](PLAN.md). This page is the operating manual.
+
+## One-time setup (any machine)
+
+```
+git pull
+"<venv>\Scripts\python.exe" -m pip install -r ..\requirements.txt   # numpy, scipy, pandas, matplotlib, emodeconnection
+"<venv>\Scripts\python.exe" test_shg_physics.py                      # seconds, no EMode
+"<venv>\Scripts\python.exe" test_cerenkov_fdfd.py                    # ~2 min, no EMode
+```
+EMode is single-seat: close any session on the other machine first.
+
+## Run a survey
+
+1. Put the geometries + settings in a config module (copy `survey_config.py` /
+   `survey_config_grid.py`). `GEOMETRIES` is a list of `('ridge', {'h_core':..., 'w_core':...})`.
+2. Start it detached, so closing the terminal / VS Code doesn't kill it (PowerShell):
+   ```
+   Start-Process -FilePath "<venv>\Scripts\python.exe" `
+     -ArgumentList '-u','survey.py','<run_name>','<config_module>' `
+     -WorkingDirectory (Get-Location) -WindowStyle Hidden `
+     -RedirectStandardOutput survey_stdout_<run_name>.log -RedirectStandardError survey_stdout_<run_name>.err.log
+   ```
+3. Watch `runs/<run_name>/progress.log` (one line per stage, ETA after each geometry).
+4. Interrupted / crashed? Just start the same command again: geometries already marked `ok`
+   in `geometries.csv` (same fingerprint) are skipped, failed ones are retried.
+
+Changing anything in SETTINGS (except the absorption mechanisms) or a geometry's params changes
+its fingerprint, so it is recomputed — old rows stay in the CSVs (filter by fingerprint).
+
+## Outputs (`runs/<run_name>/`)
+
+| file | content |
+|---|---|
+| `geometries.csv` | per geometry: fingerprint, status, #crossings, seconds |
+| `pump_modes.csv` | per pump mode: label, n_eff, loss, effective area, Cerenkov flags, field export |
+| `crossings.csv` | every guided phase match: NCE, overlap, areas, losses, L_opt, peak efficiency; `status` = refined (re-solved at the crossing, full losses + field export) or screened (in-scan estimate) |
+| `traces/<fp>.npz` | n_eff(lambda) of pumps and all SH tracks (dispersion diagrams) |
+| `exports/*.npz` | 1 W-normalized fields of refined pairs and of every pump |
+
+Post-processing (no EMode):
+```
+python summarize_run.py <run_name>      # runs/<run>/summary/: summary.md, ranking CSVs, plots
+python plot_crossing.py <run_name> 20   # field plots of the top refined crossings
+python cerenkov_run.py <run_name> [--all] [--d=10]   # Step 1b radiated-SH rate per pump
+```
+
+## Timing (desktop, 10 nm mesh, 21-step window, 5 pumps)
+
+~5 min per ridge geometry (pumps ~35 s, SH scan ~3–4 min, refining 8 crossings ~70 s).
+`cerenkov_run.py`: ~40 s per pump at 10 nm cells. Knobs: `lambda_step` (2 nm halves the
+scan but risks losing mode tracks), `num_sh_modes`, `refine_top_n`, `resolution`.

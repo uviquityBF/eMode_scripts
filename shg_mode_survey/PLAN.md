@@ -1,7 +1,9 @@
 # SHG Mode Survey — Plan
 
-Status: planning (no code yet). Started 2026-10-03. Builds on `loss_vs_dimensions/` and borrows
-from `phase_matching_pipeline/`.
+Status (2026-10-03): Step 1 and Step 1b implemented for the `ridge` family and trial-run (see
+README.md for how to run, and "Implementation status & findings" at the end). Step 2 pending
+geometry parameterization. Builds on `loss_vs_dimensions/` and borrows from
+`phase_matching_pipeline/`.
 
 ## Goal
 
@@ -196,3 +198,38 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
 - Majkić et al., Phys. Status Solidi B (2017), 201700077 — bulk AlN d33, d31.
 - Yoshioka et al., APL Materials 9, 101104 (2021) — sputtered AlScN d33/d31 vs Sc.
 - Lee et al., arXiv:2607.14590 (2026) — MBE AlScN on sapphire d31/d33 vs Sc.
+
+## Implementation status & findings (2026-10-03)
+
+Code: `survey.py` (Step 1 driver), `shg_physics.py` (figures of merit), `geometry.py` (family
+interface, `ridge`), `cerenkov_fdfd.py` + `cerenkov_run.py` (Step 1b), `summarize_run.py`,
+`plot_crossing.py`; tests `test_shg_physics.py`, `test_cerenkov_fdfd.py`. How to run: README.md.
+
+EMode facts established while building it (EMode 1.0.4):
+- `boundary_condition='0A'` (antisymmetric Ex on the west wall) returns exactly the x-even
+  class (Ey even: TM00, TM01, TM20, TE10...); `'0S'` the x-odd class (TM10, TE00...). Fields come
+  back on the FULL window (already unfolded). The old pipeline's `'TM'` setting therefore only
+  ever saw one class. The SH scan uses `'0A'` only = the selection rule, for free.
+- `max_effective_index` is a *target*: FDM returns the `num_modes` modes nearest it.
+- Mode normalization: integral of Sz = 1 (nm^2 units) with Sz = Re(E x H*) (no 1/2). E [V/m] and
+  H [A/m] are mutually SI-consistent; the survey renormalizes to 0.5 Re int(E x H*) = 1 W.
+- No permittivity export via `get_fields` (only E/H/S). chi(2) / absorption masks come from the
+  geometry builder.
+- PML combined with a symmetry boundary crashed EMode's FDM (internal broadcast error) — leaky
+  SH modes in EMode are therefore not used; radiation is handled by the driven FDFD instead.
+- `em.scattering(shape, mode_list=[i])` keeps the native scattering call to ~a few s.
+- Profile labels must not contain '.'.
+
+Physics/validation:
+- NCE formula reproduces the textbook plane-wave limit exactly; symmetry-forbidden pairs come
+  out at ~1e-16 relative. FDFD radiation matches analytic line-source results to <1% for
+  Ex/Ey/Ez sources; flux = source work to 0.1%.
+- h=350/w=400 ridge: TM00 -> TM04 at 228.8 nm, NCE 6.2 %/W/cm², EMode linear overlap 0.0086
+  (old pipeline: ~0.0095 at nearby widths), shape overlap 0.014, L_opt 3.2 mm, peak 0.08 %/W.
+- SH "modes" below the max cladding index at lambda_SH are box modes of the metal-walled window
+  (radiation continuum), not guided — excluded from guided matching (they belong to Step 1b).
+- Cerenkov from a high-index AlN ridge core into sapphire is strongly suppressed even when
+  allowed by the index condition: inside the core the SH transverse wavelength (~130 nm) is far
+  shorter than the source size, so emission cancels (kappa ~1e-5 %/W/cm in a test). Efficient
+  Cerenkov needs the nonlinear layer embedded in a cladding whose SH index is close to n_eff,pump
+  (the deck's AlN/AlScN/AlN designs) — a Step 2 geometry.

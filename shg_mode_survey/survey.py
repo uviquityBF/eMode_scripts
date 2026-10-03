@@ -384,7 +384,7 @@ def refine_crossing(em, geom, cfg, c, export_path):
     i_s = int(np.argmax(sims_s))
     scat_s = native_scattering(em, i_s)
     try:
-        lin = float(abs(em.overlap(label_a='pumpx', mode_a=ip, label_b='shx', mode_b=i_s)))
+        lin = float(abs(em.overlap(profile_a='pumpx', mode_a=ip, profile_b='shx', mode_b=i_s)))
     except Exception:  # noqa: BLE001
         lin = float('nan')
 
