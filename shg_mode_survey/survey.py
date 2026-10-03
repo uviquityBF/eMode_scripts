@@ -25,7 +25,9 @@ fingerprint (hash of family+params+settings+d-tensors) and status; on re-run, ge
 an 'ok' row for the same fingerprint are skipped, everything else is (re)done. Rows in
 crossings.csv / pump_modes.csv are only written once a geometry completes.
 
-Usage:  python survey.py <run_name> [config_module]     (default config: survey_config.py)
+Usage:  python survey.py <run_name> [config_module] [--pumps-only]
+        (default config: survey_config.py; --pumps-only = pump modes + exports only,
+        e.g. as input for cerenkov_run.py)
 """
 
 import csv
@@ -55,7 +57,7 @@ GEOM_FIELDS = ['fingerprint', 'family', 'params', 'status', 'n_pump_modes', 'n_c
 PUMP_FIELDS = ['fingerprint', 'family', 'params', 'pump_id', 'label', 'sym_class', 'te_fraction',
                'n_eff_center', 'n_eff_min', 'n_eff_max', 'wavelength_pump_center',
                'scattering_dB_per_m', 'absorption_dB_per_m', 'A_eff_um2', 'cerenkov_allowed_any',
-               'cerenkov_best_angle_deg', 'cerenkov_json']
+               'cerenkov_best_angle_deg', 'cerenkov_json', 'export_path']
 CROSS_FIELDS = ['fingerprint', 'family', 'params', 'status', 'pump_id', 'pump_label',
                 'pump_sym_class', 'pump_te_fraction', 'sh_label', 'sh_te_fraction', 'sh_track',
                 'wavelength_sh', 'wavelength_sh_corrected', 'n_eff_pump', 'n_eff_sh',
@@ -246,7 +248,7 @@ def group_pumps(pumps, span):
     return groups
 
 
-def characterize_pump(em, geom, cfg, t, lam_center):
+def characterize_pump(em, geom, cfg, t, lam_center, export_path=None):
     """Label, loss, effective area and Cerenkov flags for one chosen pump mode (window centre)."""
     em.settings(boundary_condition='0' + t['cls'])
     n, te = solve(em, 'pumpc', wavelength=2 * lam_center, num_modes=cfg['num_pump_candidates'],
@@ -262,9 +264,17 @@ def characterize_pump(em, geom, cfg, t, lam_center):
     scat = native_scattering(em, i)
     absn = sum(am.compute_mechanism_losses(mask, x[1] - x[0], y, modes[i]['Sz'],
                                            cfg['pump_absorption_mechanisms']).values())
-    flags = sp.cerenkov_flags(n[i].real, geom.cerenkov_regions(em, lam_center))
+    regions = geom.cerenkov_regions(em, lam_center)
+    flags = sp.cerenkov_flags(n[i].real, regions)
     allowed = [f for f in flags if f['allowed']]
-    return {'label': sp.mode_label(modes[i], te[i], mask), 'te_fraction': te[i],
+    label = sp.mode_label(modes[i], te[i], mask)
+    if export_path:
+        fpw = sp.normalize_to_1W(modes[i], dA)
+        np.savez_compressed(export_path, x=x, y=y, wavelength_sh=lam_center, n_eff=n[i].real,
+                            label=label, sym_class=t['cls'],
+                            n_regions_sh=json.dumps({r['name'].split(':')[0]: r['n'] for r in regions}),
+                            **{k: fpw[k].astype(np.complex64) for k in ('Ex', 'Ey', 'Ez', 'Hx', 'Hy')})
+    return {'label': label, 'te_fraction': te[i],
             'n_center': n[i].real, 'scattering': scat, 'absorption': absn,
             'A_eff': sp.intensity_effective_area_um2(modes[i], dA), 'cerenkov': flags,
             'cerenkov_any': bool(allowed),
@@ -430,7 +440,7 @@ def screened_row(c):
             'overlap_shape_screen': c['shape_screen'], 'sh_label_screen': c['label_screen']}
 
 
-def run_geometry(geom, cfg, run_dir, fp):
+def run_geometry(geom, cfg, run_dir, fp, pumps_only=False):
     lam_sh = np.arange(cfg['lambda_sh_min'], cfg['lambda_sh_max'] + 1e-9, cfg['lambda_step'])
     lam_center = 0.5 * (lam_sh[0] + lam_sh[-1])
     em = pmh.launch_session(f'shg_{fp}', clear='all')
@@ -444,12 +454,15 @@ def run_geometry(geom, cfg, run_dir, fp):
         dA = sp.cell_areas_m2(x, y)
         pumps = pump_stage(em, cfg, lam_sh, dA)
         for p in pumps:
-            p['info'] = characterize_pump(em, geom, cfg, p, lam_center)
+            p['export'] = os.path.join(run_dir, 'exports', f"{fp}_pump{p['id']}.npz")
+            p['info'] = characterize_pump(em, geom, cfg, p, lam_center, p['export'])
             p['label'] = p['info']['label']
         groups = group_pumps(pumps, cfg['pump_group_span'])
         log(run_dir, f"  pumps ({time.time() - t0:.0f}s): " +
             ' | '.join(', '.join(f"{p['label']}[{p['cls']}] {p['info']['n_center']:.4f}" for p in g)
                        for g in groups))
+        if pumps_only:
+            return pumps, []
         t0 = time.time()
         crossings, traces = sh_scan(em, geom, cfg, lam_sh, pumps, groups)
         cw = traces['coverage_warnings']
@@ -484,7 +497,7 @@ def run_geometry(geom, cfg, run_dir, fp):
     return pumps, rows
 
 
-def main(run_name, config_module='survey_config'):
+def main(run_name, config_module='survey_config', pumps_only=False):
     cfg_mod = importlib.import_module(config_module)
     cfg, geometries = cfg_mod.SETTINGS, cfg_mod.GEOMETRIES
     run_dir = os.path.join(HERE, 'runs', run_name)
@@ -510,7 +523,7 @@ def main(run_name, config_module='survey_config'):
         try:
             for attempt in (1, 2):
                 try:
-                    pumps, rows = run_geometry(g, cfg, run_dir, fp)
+                    pumps, rows = run_geometry(g, cfg, run_dir, fp, pumps_only)
                     break
                 except Exception as e:  # noqa: BLE001
                     log(run_dir, f"  attempt {attempt} failed: {e!r}")
@@ -525,7 +538,8 @@ def main(run_name, config_module='survey_config'):
                 'absorption_dB_per_m': p['info']['absorption'], 'A_eff_um2': p['info']['A_eff'],
                 'cerenkov_allowed_any': p['info']['cerenkov_any'],
                 'cerenkov_best_angle_deg': p['info']['cerenkov_best_angle'],
-                'cerenkov_json': json.dumps(p['info']['cerenkov'])} for p in pumps])
+                'cerenkov_json': json.dumps(p['info']['cerenkov']),
+                'export_path': os.path.relpath(p['export'], HERE)} for p in pumps])
             append_rows(os.path.join(run_dir, 'crossings.csv'), CROSS_FIELDS,
                         [{**base, **r} for r in rows])
             n_ref = sum(r['status'] == 'refined' for r in rows)
@@ -550,5 +564,6 @@ def main(run_name, config_module='survey_config'):
 
 
 if __name__ == '__main__':
-    main(sys.argv[1] if len(sys.argv) > 1 else 'trial',
-         sys.argv[2] if len(sys.argv) > 2 else 'survey_config')
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    main(args[0] if args else 'trial', args[1] if len(args) > 1 else 'survey_config',
+         pumps_only='--pumps-only' in sys.argv)

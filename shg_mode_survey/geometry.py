@@ -84,6 +84,34 @@ class Ridge:
         return {'d33': mask * t['d33'] * 1e-12, 'd31': mask * t['d31'] * 1e-12,
                 'd15': mask * d15 * 1e-12}
 
+    def eps_fn(self, wavelength_sh_nm, n_regions):
+        """eps(X, Y, comp) at lambda_SH for the driven Cerenkov solve. `n_regions` maps
+        'substrate' / 'topclad' to their index at lambda_SH (from EMode, stored with the pump
+        export). The top clad is treated as semi-infinite (thick in the real device)."""
+        p = self.params
+        n_o = eval_index_equation(p['core_eq_o'], wavelength_sh_nm)
+        n_e = eval_index_equation(p['core_eq_e'], wavelength_sh_nm)
+        core_eps = {'Ex': n_o ** 2, 'Ey': n_e ** 2, 'Ez': n_o ** 2}
+
+        def f(X, Y, comp):
+            core = self.core_mask(X[0, :], Y[:, 0])
+            sub = Y < p['substrate_height']
+            return np.where(core, core_eps[comp],
+                            np.where(sub, n_regions['substrate'] ** 2,
+                                     n_regions['topclad'] ** 2)).astype(complex)
+        return f
+
+    def d_fn(self, d_tensors_pm):
+        def f(X, Y):
+            return self.chi2_map(X[0, :], Y[:, 0], d_tensors_pm)
+        return f
+
+    def bbox(self):
+        """(x0, x1, y0, y1) [nm] of the core in EMode grid coordinates."""
+        p = self.params
+        return (-p['w_core'] / 2, p['w_core'] / 2, p['substrate_height'],
+                p['substrate_height'] + p['h_core'])
+
     def cerenkov_regions(self, em, wavelength_sh_nm):
         """Regions SH could radiate into, with their index at lambda_SH and bulk/finite extent.
         Substrate and top clad are treated as bulk (thick in the real device)."""
