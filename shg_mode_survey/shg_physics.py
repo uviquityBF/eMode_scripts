@@ -161,26 +161,42 @@ def _sign_changes(line, thresh):
     return int(np.sum(s[1:] != s[:-1])) if s.size > 1 else 0
 
 
+def _typical_count(lines, thresh, weights):
+    """Power-weighted most common sign-change count over a set of 1D cuts, and the weight
+    fraction that agrees with it (low = hybrid / ambiguous mode)."""
+    tally = {}
+    for line, wgt in zip(lines, weights):
+        c = _sign_changes(line, thresh)
+        tally[c] = tally.get(c, 0.0) + wgt
+    if not tally:
+        return 0, 1.0
+    best = max(tally, key=tally.get)
+    return best, tally[best] / sum(tally.values())
+
+
 def count_nodes(f, mask=None, rel_threshold=0.08):
-    """(m, n) = (lateral, vertical) node counts of the dominant transverse component, counted
-    as sign changes along cuts through the core, ignoring pixels below rel_threshold * max.
-    Lateral: max over rows inside the core; vertical: max over columns inside the core.
-    Heuristic labelling only -- verify with field plots for anything that matters.
+    """(m, n, agreement) = (lateral, vertical) node counts of the dominant transverse
+    component: sign changes along each row (lateral) / column (vertical) through the core,
+    ignoring pixels below rel_threshold * max, taking the power-weighted most common count.
+    `agreement` (0..1) is the smaller of the two consensus fractions -- below ~0.6 the mode is
+    a hybrid without a clean TMmn identity. Heuristic -- check field plots when it matters.
     """
     F = _dominant_component(f)
     k = np.argmax(np.abs(F))
     F = np.real(F * np.exp(-1j * np.angle(F.flat[k])))
     thresh = rel_threshold * np.abs(F).max()
-    rows = np.where(mask.any(axis=1))[0] if mask is not None else range(F.shape[0])
-    cols = np.where(mask.any(axis=0))[0] if mask is not None else range(F.shape[1])
-    m = max((_sign_changes(F[r, :], thresh) for r in rows), default=0)
-    n = max((_sign_changes(F[:, c], thresh) for c in cols), default=0)
-    return m, n
+    rows = np.where(mask.any(axis=1))[0] if mask is not None else np.arange(F.shape[0])
+    cols = np.where(mask.any(axis=0))[0] if mask is not None else np.arange(F.shape[1])
+    m, am = _typical_count([F[r, :] for r in rows], thresh, [np.sum(F[r, :] ** 2) for r in rows])
+    n, an = _typical_count([F[:, c] for c in cols], thresh, [np.sum(F[:, c] ** 2) for c in cols])
+    return m, n, min(am, an)
 
 
 def mode_label(f, te_fraction, mask=None):
-    m, n = count_nodes(f, mask)
-    return f"{'TE' if te_fraction >= 0.5 else 'TM'}{m}{n}"
+    """'TMmn' / 'TEmn' (m lateral, n vertical nodes); suffix '?' when the node pattern is
+    ambiguous (hybrid mode, agreement < 0.6)."""
+    m, n, agree = count_nodes(f, mask)
+    return f"{'TE' if te_fraction >= 0.5 else 'TM'}{m}{n}{'' if agree >= 0.6 else '?'}"
 
 
 def cerenkov_flags(n_eff_pump, regions_n_sh):

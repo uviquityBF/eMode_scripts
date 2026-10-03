@@ -233,3 +233,24 @@ Physics/validation:
   shorter than the source size, so emission cancels (kappa ~1e-5 %/W/cm in a test). Efficient
   Cerenkov needs the nonlinear layer embedded in a cladding whose SH index is close to n_eff,pump
   (the deck's AlN/AlScN/AlN designs) — a Step 2 geometry.
+
+### Trial grid results (ridge, h = 300/350/400, w = 300–800, run `trial_grid`, 2026-10-03)
+
+- 18 geometries in 91 min (~5 min each), 0 failures; 1109 guided crossings, 140 refined.
+  Pump-export pass 16 min; Cerenkov pass ~40 s per pump.
+- Best loss-limited: TM00 -> TM04, h=350, w=500 (227.9 nm): NCE 4.8 %/W/cm², L_opt 4.3 mm,
+  peak 0.11 %/W; TM00 -> TM04/TM64 at h=350 holds ~0.08–0.11 %/W for w = 400–700.
+  At h=400 the best partner becomes TM01 pump -> TM06 SH.
+- Highest lossless NCE: TM10 -> TM60 (h=350, w=400) 14.9 %/W/cm² — but its SH mode scatters
+  ~1100 dB/cm (EMode-native, 2.5 nm sidewall rms), so its loss-limited peak is ~100x lower.
+  All shape overlaps are ~0.01–0.025.
+- **No TM02/TM20 SH partner phase-matches anywhere in 215–235 nm.** Wide-window run
+  (`wide_window`, 215–275 nm, h=300/350, w=500): lowest-order TM00 partners are TM22
+  (254–263 nm) and TM40 (263–267 nm); TM02/TM20 lie beyond 275 nm. AlN's index dispersion
+  450 -> 225 nm is too large for a low-order SH mode to match the pump in a plain ridge;
+  bringing TM02 into the window needs dispersion engineering (Step 2 geometries / materials).
+- Cerenkov (Step 1b) for all 19 index-allowed pumps: kappa_C <= 0.0019 %/W/cm (best: TM01,
+  h=350 w=300, 14 deg into sapphire); energy balance within 0.3% everywhere. Negligible vs the
+  guided match, as expected from the core-cancellation argument above.
+- Mode labels: node counting now uses the power-weighted most common count per row/column
+  and marks hybrids with '?'; `relabel_run.py` re-labels refined rows from their exports.

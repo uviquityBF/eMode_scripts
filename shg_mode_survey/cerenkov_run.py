@@ -83,7 +83,8 @@ def main(run_name, include_all=False, d_nm=10.0, config_module='survey_config'):
             if new:
                 w.writeheader()
             w.writerow(out)
-        print(f"{json.loads(r['params'])} {r['label']}: kappa_C = {out['kappa_pct_per_W_cm']:.3g} %/W/cm "
+        pp = json.loads(r['params'])
+        print(f"h={pp.get('h_core')} w={pp.get('w_core')} {r['label']}: kappa_C = {out['kappa_pct_per_W_cm']:.3g} %/W/cm "
               f"(substrate {out['to_substrate']:.2g}, top {out['to_topclad']:.2g}, "
               f"lateral {out['to_left'] + out['to_right']:.2g}; balance {out['balance']:.3f}; "
               f"{out['seconds']:.0f}s)")

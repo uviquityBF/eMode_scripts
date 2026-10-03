@@ -78,8 +78,8 @@ def scatter_vs_width(c, ycol, ylabel, path, log=True, title=''):
     axs[0][0].set_ylabel(ylabel, fontsize=9, color=INK)
     handles = [plt.Line2D([], [], marker='o', ls='', color=PUMP_COLORS.get(p, OTHER), label=f'pump {p}')
                for p in sorted(set(pumps_seen), key=lambda p: list(PUMP_COLORS).index(p) if p in PUMP_COLORS else 99)]
-    handles += [plt.Line2D([], [], marker='o', ls='', color=MUTED, label='refined'),
-                plt.Line2D([], [], marker='o', ls='', mfc='none', color=MUTED, label='screened only')]
+    handles += [plt.Line2D([], [], marker='o', ls='', color=INK, label='refined (filled)'),
+                plt.Line2D([], [], marker='o', ls='', mfc='none', color=INK, label='screened only (hollow)')]
     fig.legend(handles=handles, loc='upper center', ncol=len(handles), fontsize=8, frameon=False,
                bbox_to_anchor=(0.5, 1.0))
     fig.suptitle(title, fontsize=10, y=1.07, color=INK)
