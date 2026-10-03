@@ -37,6 +37,12 @@ via git — `git pull` before starting work, `pip install -r requirements.txt` i
   against a live `inspect_emode_outputs.py` run (see its module docstring); only
   `build_core_mask_from_geometry`'s trapezoid convention was cross-checked visually, not against
   EMode's own permittivity export.
+- `shg_mode_survey/` — new deliverable (planning stage; read `shg_mode_survey/PLAN.md` first):
+  per-geometry survey of pump/SH mode pairs for SHG at λ_SH ≈ 215–235 nm — guided phase
+  matching (full-tensor overlap, effective areas, NCE, pump+SH loss) plus Cerenkov/leaky
+  radiative SH via a driven 2D FDFD solve. Step 1 = existing ridge geometry; Step 2 = geometry
+  families (rib/loaded/hybrid, AlScN stacks) + sweeps. Mode labels TMmn = m lateral, n
+  vertical nodes.
 - `.eph` simulation files are gitignored everywhere in the repo (pattern has no leading slash, so it
   applies at any depth) — keep them out of commits regardless of which folder they land in.
 
