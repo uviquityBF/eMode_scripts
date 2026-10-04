@@ -58,8 +58,23 @@ def test_loss_limited_length():
     print(f"loss-limited OK: 5 dB/cm pump, 50 dB/cm SH -> L_opt={L * 1e3:.2f} mm, L_eff={leff * 1e3:.2f} mm")
 
 
+def test_overlap_terms():
+    rng = np.random.default_rng(0)
+    shp = (40, 50)
+    dA = np.full(shp, 1e-16)
+    rnd = lambda: rng.normal(size=shp) + 1j * rng.normal(size=shp)  # noqa: E731
+    Es = {k: rnd() for k in ('Ex', 'Ey', 'Ez')}
+    Ep = {k: rnd() for k in ('Ex', 'Ey', 'Ez')}
+    d = {'d33': 4.7e-12, 'd31': 0.3e-12, 'd15': 0.2e-12}
+    t = sp.overlap_terms(Es, Ep, d, dA, 225.0)
+    assert abs(t['overlap_abs'] - abs(sp.shg_overlap(Es, Ep, d, dA))) < 1e-9 * t['overlap_abs']
+    assert abs(t['share_d33'] + t['share_d31'] + t['share_d15'] - 1) < 1e-12
+    print(f"overlap terms OK: shares d33/d31/d15 = {t['share_d33']:.3f}/{t['share_d31']:.3f}/{t['share_d15']:.3f}")
+
+
 if __name__ == '__main__':
     test_plane_wave_limit()
     test_symmetry_forbidden()
     test_loss_limited_length()
+    test_overlap_terms()
     print('all passed')

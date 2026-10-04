@@ -52,6 +52,10 @@ FIELD_KEYS = ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz']
 SCAN_KEYS = ['Ex', 'Ey', 'Ez', 'Hx', 'Hy']  # enough for tracking, power, overlap
 TRACK_SIMILARITY_MIN = 0.5
 
+# NCE breakdown (shg_physics.overlap_terms) + power fraction in the chi(2) core (refined only)
+TERM_FIELDS = ['overlap_abs', 'nce_d33_only_pct_per_W_cm2', 'nce_d31_only_pct_per_W_cm2',
+               'nce_d15_only_pct_per_W_cm2', 'share_d33', 'share_d31', 'share_d15',
+               'pump_power_in_core', 'sh_power_in_core']
 GEOM_FIELDS = ['fingerprint', 'family', 'params', 'status', 'n_pump_modes', 'n_crossings',
                'n_refined', 'seconds', 'timestamp', 'error']
 PUMP_FIELDS = ['fingerprint', 'family', 'params', 'pump_id', 'label', 'sym_class', 'te_fraction',
@@ -67,12 +71,22 @@ CROSS_FIELDS = ['fingerprint', 'family', 'params', 'status', 'pump_id', 'pump_la
                 'sh_scattering_dB_per_m', 'sh_absorption_dB_per_m',
                 'L_opt_mm', 'L_eff_mm', 'peak_efficiency_pct_per_W', 'cerenkov_allowed_any',
                 'eta_screen_pct_per_W_cm2', 'overlap_shape_screen', 'sh_label_screen',
-                'export_path', 'pump_identify_similarity', 'sh_identify_similarity']
+                'export_path', 'pump_identify_similarity', 'sh_identify_similarity'] + TERM_FIELDS
 
 
 # ----------------------------------------------------------------------------------------- I/O
 def append_rows(path, fieldnames, rows):
     new = not (os.path.exists(path) and os.path.getsize(path) > 0)
+    if not new:  # upgrade an older file's header if columns were added since it was written
+        with open(path, newline='') as f:
+            old_rows = list(csv.DictReader(f))
+            old_fields = list(old_rows[0].keys()) if old_rows else fieldnames
+        if old_fields != fieldnames:
+            with open(path, 'w', newline='') as f:
+                w = csv.DictWriter(f, fieldnames=fieldnames + [k for k in old_fields if k not in fieldnames],
+                                   extrasaction='ignore')
+                w.writeheader()
+                w.writerows(old_rows)
     with open(path, 'a', newline='') as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
         if new:
@@ -339,7 +353,8 @@ def sh_scan(em, geom, cfg, lam_sh, pumps, groups):
                         'te': t['te'][k], 'n_sh': n_x, 'n_p': n_x,
                         'eta_screen': eta, 'shape_screen': sp.overlap_shape_factor(Es, p['E'][kp], d_map, dA),
                         'label_screen': sp.mode_label(Es, t['te'][k], mask),
-                        'A_shg_screen': sp.shg_effective_area_um2(eta, n_x, n_x, 2 * lam_x, d_ref)})
+                        'A_shg_screen': sp.shg_effective_area_um2(eta, n_x, n_x, 2 * lam_x, d_ref),
+                        'terms': sp.overlap_terms(Es, p['E'][kp], d_map, dA, lam_x)})
             st['prev_E'], st['prev_small'] = cur_E, cur_small
     all_tracks = [(g, t) for g, st in enumerate(state) if st['tracker'] for t in st['tracker'].tracks]
     traces = {'lambda_sh': np.asarray(lam_sh),
@@ -426,6 +441,9 @@ def refine_crossing(em, geom, cfg, c, export_path):
         'cerenkov_allowed_any': any(f['allowed'] for f in cer),
         'export_path': os.path.relpath(export_path, HERE),
         'pump_identify_similarity': sims_p[ip], 'sh_identify_similarity': sims_s[i_s],
+        **sp.overlap_terms(fs, fp, d, dA, lam),
+        'pump_power_in_core': sp.power_fraction_in(pm[ip], mask),
+        'sh_power_in_core': sp.power_fraction_in(sm[i_s], mask),
     }
 
 
@@ -437,7 +455,8 @@ def screened_row(c):
             'n_eff_sh': c['n_sh'], 'eta_pct_per_W_cm2': sp.eta_to_pct_per_W_cm2(c['eta_screen']),
             'A_shg_um2': c['A_shg_screen'], 'overlap_shape': c['shape_screen'],
             'eta_screen_pct_per_W_cm2': sp.eta_to_pct_per_W_cm2(c['eta_screen']),
-            'overlap_shape_screen': c['shape_screen'], 'sh_label_screen': c['label_screen']}
+            'overlap_shape_screen': c['shape_screen'], 'sh_label_screen': c['label_screen'],
+            **c['terms']}
 
 
 def run_geometry(geom, cfg, run_dir, fp, pumps_only=False):

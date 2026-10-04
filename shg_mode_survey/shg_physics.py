@@ -76,6 +76,36 @@ def shg_overlap(Es, Ep, d, dA):
     return np.sum((np.conj(Es['Ex']) * Px + np.conj(Es['Ey']) * Py + np.conj(Es['Ez']) * Pz) * dA)
 
 
+def overlap_terms(Es, Ep, d, dA, wavelength_sh_nm):
+    """Split O = O_d33 + O_d31 + O_d15 by tensor element, for 1 W-normalized modes:
+        O_d33 = int Es_y* d33 Ey^2
+        O_d31 = int Es_y* d31 (Ex^2 + Ez^2)
+        O_d15 = int (Es_x* 2 d15 Ex Ey + Es_z* 2 d15 Ez Ey)
+    Returns |O| and, per term, the NCE that term alone would give [%/W/cm^2] and its signed
+    share of the total, Re(O_term O*)/|O|^2 (shares sum to 1; a negative share means that term
+    cancels part of the others)."""
+    Ex, Ey, Ez = Ep['Ex'], Ep['Ey'], Ep['Ez']
+    terms = {
+        'd33': np.sum(np.conj(Es['Ey']) * d['d33'] * Ey * Ey * dA),
+        'd31': np.sum(np.conj(Es['Ey']) * d['d31'] * (Ex * Ex + Ez * Ez) * dA),
+        'd15': np.sum((np.conj(Es['Ex']) * 2 * d['d15'] * Ex * Ey
+                       + np.conj(Es['Ez']) * 2 * d['d15'] * Ez * Ey) * dA),
+    }
+    O = sum(terms.values())
+    out = {'overlap_abs': float(np.abs(O))}
+    for k, v in terms.items():
+        out[f'nce_{k}_only_pct_per_W_cm2'] = eta_to_pct_per_W_cm2(eta_norm_per_W_m2(v, wavelength_sh_nm))
+        out[f'share_{k}'] = float(np.real(v * np.conj(O)) / np.abs(O) ** 2) if np.abs(O) > 0 else 0.0
+    return out
+
+
+def power_fraction_in(f, mask):
+    """Fraction of a mode's z-power (Sz) inside `mask` (e.g. the chi(2) core)."""
+    sz = np.real(f['Sz']) if 'Sz' in f else np.real(f['Ex'] * np.conj(f['Hy']) - f['Ey'] * np.conj(f['Hx']))
+    tot = np.sum(sz)
+    return float(np.sum(sz * mask) / tot) if tot else float('nan')
+
+
 def overlap_shape_factor(Es, Ep, d, dA):
     """Dimensionless 0..1: |O| / sqrt(int|E_SH|^2 dA * int|d:E_pE_p|^2 dA), integrals over the
     chi(2) region only (where any d != 0). 1 means the SH mode's field inside the nonlinear
