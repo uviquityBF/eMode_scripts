@@ -133,19 +133,24 @@ def fetch_fields(em, keys=None):
     return x, y, modes
 
 
-def native_scattering(em, mode_idx):
-    """EMode-native roughness scattering [dB/m] (vertical + horizontal edges) for one mode of the
-    current solve; NaN if it fails (never fatal)."""
-    for kwargs in ({'mode_list': [int(mode_idx)]}, {}):
-        try:
-            em.scattering(shape='core', **kwargs)
-            meta = em.get_shape(key='core')
-            meta = meta['metadata'] if isinstance(meta, dict) else meta.metadata
-            arr = np.atleast_1d(np.asarray(meta['scattering_sum'], dtype=float))
-            return float(arr[0] if kwargs and len(arr) == 1 else arr[mode_idx])
-        except Exception:  # noqa: BLE001
-            continue
-    return float('nan')
+def native_scattering(em, mode_idx, shapes=('core',)):
+    """EMode-native roughness scattering [dB/m] (vertical + horizontal edges), summed over the
+    geometry's etched shapes, for one mode of the current solve; NaN if it fails (never fatal)."""
+    total = 0.0
+    for shape in shapes:
+        val = float('nan')
+        for kwargs in ({'mode_list': [int(mode_idx)]}, {}):
+            try:
+                em.scattering(shape=shape, **kwargs)
+                meta = em.get_shape(key=shape)
+                meta = meta['metadata'] if isinstance(meta, dict) else meta.metadata
+                arr = np.atleast_1d(np.asarray(meta['scattering_sum'], dtype=float))
+                val = float(arr[0] if kwargs and len(arr) == 1 else arr[mode_idx])
+                break
+            except Exception:  # noqa: BLE001
+                continue
+        total += val
+    return total
 
 
 def small(f, step=2):
@@ -210,7 +215,18 @@ class Tracker:
 
 
 # ------------------------------------------------------------------------------- per geometry
-def pump_stage(em, cfg, lam_sh, dA):
+def sym_classes(geom):
+    """Pump symmetry classes to solve: 'A' -> bc '0A' (x-even), 'S' -> '0S' (x-odd); an
+    asymmetric geometry has no classes, so one unrestricted solve ('0' -> bc '00')."""
+    return ('A', 'S') if geom.symmetric_x else ('0',)
+
+
+def sh_bc(geom):
+    """SH modes: x-even class only when the mirror selection rule applies, else everything."""
+    return '0A' if geom.symmetric_x else '00'
+
+
+def pump_stage(em, geom, cfg, lam_sh, dA):
     """Solve pump modes in both symmetry classes at cfg['pump_points'] wavelengths spanning the
     window, pick the pump modes to keep, return them with n_eff(lambda_SH) interpolants and
     1 W-normalized E fields at each pump point."""
@@ -218,7 +234,7 @@ def pump_stage(em, cfg, lam_sh, dA):
     i_mid = len(lam_pts) // 2
     pumps = []
     dA_small = None
-    for cls in ('A', 'S'):
+    for cls in sym_classes(geom):
         em.settings(boundary_condition='0' + cls)
         tracker, smalls, Es = None, {}, {}
         for k, lam in enumerate(lam_pts):
@@ -275,7 +291,7 @@ def characterize_pump(em, geom, cfg, t, lam_center, export_path=None):
     sims = [sp.transverse_similarity(t['small'][i_mid], small(f), dA_small) for f in modes]
     i = int(np.argmax(sims))
     mask = geom.core_mask(x, y)
-    scat = native_scattering(em, i)
+    scat = native_scattering(em, i, geom.scatter_shapes)
     absn = sum(am.compute_mechanism_losses(mask, x[1] - x[0], y, modes[i]['Sz'],
                                            cfg['pump_absorption_mechanisms']).values())
     regions = geom.cerenkov_regions(em, lam_center)
@@ -286,7 +302,8 @@ def characterize_pump(em, geom, cfg, t, lam_center, export_path=None):
         fpw = sp.normalize_to_1W(modes[i], dA)
         np.savez_compressed(export_path, x=x, y=y, wavelength_sh=lam_center, n_eff=n[i].real,
                             label=label, sym_class=t['cls'],
-                            n_regions_sh=json.dumps({r['name'].split(':')[0]: r['n'] for r in regions}),
+                            n_regions_sh=json.dumps({**{r['name'].split(':')[0]: r['n'] for r in regions},
+                                                     **geom.export_regions(em, lam_center)}),
                             **{k: fpw[k].astype(np.complex64) for k in ('Ex', 'Ey', 'Ez', 'Hx', 'Hy')})
     return {'label': label, 'te_fraction': te[i],
             'n_center': n[i].real, 'scattering': scat, 'absorption': absn,
@@ -299,7 +316,7 @@ def characterize_pump(em, geom, cfg, t, lam_center, export_path=None):
 def sh_scan(em, geom, cfg, lam_sh, pumps, groups):
     """Solve SH (class A) per pump group at every lambda step, track modes, find and screen
     crossings. Returns (crossings, traces)."""
-    em.settings(boundary_condition='0A')
+    em.settings(boundary_condition=sh_bc(geom))
     d_ref = cfg['d_tensors_pm'][cfg['d_ref_material']]['d33'] * 1e-12
     state = [{'tracker': None, 'prev_E': None, 'prev_small': None} for _ in groups]
     crossings, coverage_warnings = [], []
@@ -370,7 +387,8 @@ def sh_scan(em, geom, cfg, lam_sh, pumps, groups):
 def guided_cutoff(em, geom, lam_sh):
     """max cladding/substrate index at each lambda_SH (interpolated from 3 lookups)."""
     pts = np.array([lam_sh[0], 0.5 * (lam_sh[0] + lam_sh[-1]), lam_sh[-1]])
-    vals = [max(r['n'] for r in geom.cerenkov_regions(em, float(l))) for l in pts]
+    vals = [max(r['n'] for r in geom.cerenkov_regions(em, float(l)) if r['extent'] == 'bulk')
+            for l in pts]
     return np.interp(lam_sh, pts, vals)
 
 
@@ -388,16 +406,16 @@ def refine_crossing(em, geom, cfg, c, export_path):
     dA_small = sp.cell_areas_m2(x[::2], y[::2])
     sims_p = [sp.transverse_similarity(p['small'][kp], small(f), dA_small) for f in pm]
     ip = int(np.argmax(sims_p))
-    scat_p = native_scattering(em, ip)
+    scat_p = native_scattering(em, ip, geom.scatter_shapes)
 
-    em.settings(boundary_condition='0A')
+    em.settings(boundary_condition=sh_bc(geom))
     n_s, te_s = solve(em, 'shx', wavelength=lam, num_modes=cfg['num_sh_refine_modes'],
                       max_effective_index=float(n_p[ip].real), x_resolution=cfg['resolution'],
                       y_resolution=cfg['resolution'])
     _, _, sm = fetch_fields(em)
     sims_s = [sp.transverse_similarity(c['ref_small'], small(f), dA_small) for f in sm]
     i_s = int(np.argmax(sims_s))
-    scat_s = native_scattering(em, i_s)
+    scat_s = native_scattering(em, i_s, geom.scatter_shapes)
     try:
         lin = float(abs(em.overlap(profile_a='pumpx', mode_a=ip, profile_b='shx', mode_b=i_s)))
     except Exception:  # noqa: BLE001
@@ -466,12 +484,12 @@ def run_geometry(geom, cfg, run_dir, fp, pumps_only=False):
     try:
         geom.build(em, cfg['roughness_rms'], cfg['correlation_length'])
         t0 = time.time()
-        em.settings(boundary_condition='0A', wavelength=2 * lam_center,
+        em.settings(boundary_condition=sh_bc(geom), wavelength=2 * lam_center,
                     x_resolution=cfg['resolution'], y_resolution=cfg['resolution'], num_modes=1)
         em.FDM()
         x, y, _ = fetch_fields(em)
         dA = sp.cell_areas_m2(x, y)
-        pumps = pump_stage(em, cfg, lam_sh, dA)
+        pumps = pump_stage(em, geom, cfg, lam_sh, dA)
         for p in pumps:
             p['export'] = os.path.join(run_dir, 'exports', f"{fp}_pump{p['id']}.npz")
             p['info'] = characterize_pump(em, geom, cfg, p, lam_center, p['export'])

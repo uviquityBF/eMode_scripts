@@ -127,7 +127,169 @@ class Ridge:
         return f"ridge h={p['h_core']:g} w={p['w_core']:g} sw={p['sidewall_angle']:g}"
 
 
-FAMILIES = {'ridge': Ridge}
+def _trapezoid(xx, yy, y0, height, w_bottom, sidewall_angle, x_center=0.0):
+    """Trapezoid mask: bottom width w_bottom at y0, narrowing upward by sidewall_angle."""
+    above = yy - y0
+    inside = (above >= 0) & (above <= height)
+    half = w_bottom / 2 - np.clip(above, 0, height) * np.tan(np.radians(sidewall_angle))
+    return inside & (np.abs(xx - x_center) <= half)
+
+
+class Loaded:
+    """Loaded / rib-loaded / hybrid AlN guide (John Carlson deck, 2026-09, slides 10-15):
+
+        strip (strip_material, h_s, w_s, strip_sidewall, strip_offset)
+        AlN film of thickness t_film, etched to etch_depth outside a rib of width w_rib
+        sapphire substrate, conformal SiO2 top clad
+
+    etch_depth = 0 -> pure loaded (unetched AlN, e.g. Zetian Mi / John's proposal);
+    etch_depth = t_film -> strip on a full AlN ridge; in between -> etched rib-loaded (FBH).
+    strip_material: an EMode database name (e.g. 'TiO2'), or set strip_eq (isotropic index
+    equation in um, may be complex via 'j') to add it as a custom material. strip_chi2: key into
+    d_tensors_pm if the strip is nonlinear (AlGaN/ScAlN), else None.
+
+    UNVERIFIED (check with em.plot(component='Index') once): EMode's mask/etch_depth convention
+    for a partial etch (mask = unetched rib width, slab = t_film - etch_depth outside) and that
+    mask_offset shifts the strip laterally -- same conventions as the ridge, but not yet
+    confirmed for these two cases.
+    """
+    family = 'loaded'
+    defaults = {'etch_depth': 0.0, 'w_rib': None, 'sidewall_angle': 5.0,
+                'strip_material': 'TiO2', 'strip_eq': None, 'strip_chi2': None,
+                'strip_sidewall': 5.0, 'strip_offset': 0.0,
+                'substrate_height': 1000.0, 'topclad_height': 800.0,
+                'substrate_material': 'Al2O3', 'topclad_material': 'SiO2',
+                'core_eq_o': AlN_EQ_O, 'core_eq_e': AlN_EQ_E, 'core_chi2': 'AlN'}
+
+    def __init__(self, **params):
+        self.params = {**self.defaults, **params}
+        for k in ('t_film', 'h_s', 'w_s'):
+            if k not in self.params:
+                raise ValueError(f"loaded needs {k}")
+        if self.params['w_rib'] is None:
+            self.params['w_rib'] = self.params['w_s']
+
+    @property
+    def symmetric_x(self):
+        return abs(self.params['strip_offset']) < 1e-9
+
+    @property
+    def window_width(self):
+        p = self.params
+        return max(2400.0, max(p['w_s'], p['w_rib']) + 2 * abs(p['strip_offset']) + 2000.0)
+
+    @property
+    def scatter_shapes(self):
+        """Shapes with etched sidewalls (for EMode-native roughness scattering)."""
+        return ['strip'] + (['film'] if self.params['etch_depth'] > 0 else [])
+
+    def _strip_material_name(self):
+        return 'custom_strip' if self.params['strip_eq'] else self.params['strip_material']
+
+    def build(self, em, roughness_rms=(0.0, 0.0), correlation_length=(0.0, 0.0)):
+        p = self.params
+        aniso = f"[{p['core_eq_o']},{p['core_eq_e']},{p['core_eq_o']}]"
+        em.add_material(name='custom_AlN', refractive_index_equation=aniso, wavelength_unit='um')
+        if p['strip_eq']:
+            em.add_material(name='custom_strip', refractive_index_equation=p['strip_eq'],
+                            wavelength_unit='um')
+        total = p['t_film'] + p['h_s']
+        em.settings(window_width=self.window_width, window_height=total + 2000.0,
+                    boundary_condition='0A')
+        em.shape(name='Substrate', material=p['substrate_material'], height=p['substrate_height'])
+        rough = ({'roughness_rms': list(roughness_rms), 'correlation_length': list(correlation_length)}
+                 if any(roughness_rms) else {})
+        em.shape(name='film', material='custom_AlN', height=p['t_film'], mask=p['w_rib'],
+                 etch_depth=p['etch_depth'], sidewall_angle=p['sidewall_angle'],
+                 **(rough if p['etch_depth'] > 0 else {}))
+        em.shape(name='strip', material=self._strip_material_name(), height=p['h_s'],
+                 mask=p['w_s'], mask_offset=p['strip_offset'], etch_depth=p['h_s'],
+                 sidewall_angle=p['strip_sidewall'], **rough)
+        em.shape(name='TopClad', material=p['topclad_material'], height=p['topclad_height'],
+                 shape_type='conformal')
+
+    def _masks(self, x, y):
+        p = self.params
+        xx, yy = np.meshgrid(np.asarray(x, float), np.asarray(y, float))
+        y_sub = p['substrate_height']
+        slab = p['t_film'] - p['etch_depth']
+        film = ((yy >= y_sub) & (yy <= y_sub + slab)) | _trapezoid(
+            xx, yy, y_sub + slab, p['etch_depth'], p['w_rib'], p['sidewall_angle'])
+        strip = _trapezoid(xx, yy, y_sub + p['t_film'], p['h_s'], p['w_s'], p['strip_sidewall'],
+                           p['strip_offset'])
+        return film, strip
+
+    def core_mask(self, x, y):
+        """The AlN film (the growth-interface / chi(2) reference region)."""
+        return self._masks(x, y)[0]
+
+    def chi2_map(self, x, y, d_tensors_pm):
+        film, strip = self._masks(x, y)
+        out = {k: np.zeros(film.shape) for k in ('d33', 'd31', 'd15')}
+        for mask, key in ((film, self.params['core_chi2']), (strip, self.params['strip_chi2'])):
+            if key:
+                t = d_tensors_pm[key]
+                for k, v in (('d33', t['d33']), ('d31', t['d31']), ('d15', t.get('d15', t['d31']))):
+                    out[k] = out[k] + mask * v * 1e-12
+        return out
+
+    def _strip_n(self, em, wavelength_nm):
+        if self.params['strip_eq']:
+            return eval_index_equation(self.params['strip_eq'], wavelength_nm)
+        return _scalar_index(em.refractive_index(material=self.params['strip_material'],
+                                                 wavelength=wavelength_nm))
+
+    def cerenkov_regions(self, em, wavelength_sh_nm):
+        p = self.params
+        out = []
+        for name, mat in (('substrate', p['substrate_material']), ('topclad', p['topclad_material'])):
+            n = _scalar_index(em.refractive_index(material=mat, wavelength=wavelength_sh_nm))
+            out.append({'name': f"{name}:{mat}", 'n': n, 'extent': 'bulk'})
+        if p['etch_depth'] < p['t_film']:  # laterally extended AlN slab: SH can couple into it
+            out.append({'name': 'slab:AlN', 'extent': 'finite',
+                        'n': eval_index_equation(p['core_eq_e'], wavelength_sh_nm)})
+        return out
+
+    def eps_fn(self, wavelength_sh_nm, n_regions):
+        p = self.params
+        n_o = eval_index_equation(p['core_eq_o'], wavelength_sh_nm)
+        n_e = eval_index_equation(p['core_eq_e'], wavelength_sh_nm)
+        core_eps = {'Ex': n_o ** 2, 'Ey': n_e ** 2, 'Ez': n_o ** 2}
+        n_strip = n_regions['strip']
+
+        def f(X, Y, comp):
+            film, strip = self._masks(X[0, :], Y[:, 0])
+            sub = Y < p['substrate_height']
+            return np.where(film, core_eps[comp], np.where(strip, n_strip ** 2, np.where(
+                sub, n_regions['substrate'] ** 2, n_regions['topclad'] ** 2))).astype(complex)
+        return f
+
+    def d_fn(self, d_tensors_pm):
+        def f(X, Y):
+            return self.chi2_map(X[0, :], Y[:, 0], d_tensors_pm)
+        return f
+
+    def bbox(self):
+        p = self.params
+        w = max(p['w_s'], p['w_rib']) + 2 * abs(p['strip_offset'])
+        return (-w / 2, w / 2, p['substrate_height'],
+                p['substrate_height'] + p['t_film'] + p['h_s'])
+
+    def export_regions(self, em, wavelength_sh_nm):
+        """Indices stored with pump exports for the Cerenkov solve."""
+        return {'strip': self._strip_n(em, wavelength_sh_nm)}
+
+    def describe(self):
+        p = self.params
+        return (f"loaded t={p['t_film']:g} e={p['etch_depth']:g} {p['strip_material'] if not p['strip_eq'] else 'custom'}"
+                f" h_s={p['h_s']:g} w_s={p['w_s']:g}" + (f" off={p['strip_offset']:g}" if p['strip_offset'] else ''))
+
+
+Ridge.symmetric_x = True
+Ridge.scatter_shapes = ['core']
+Ridge.export_regions = lambda self, em, lam: {}
+
+FAMILIES = {'ridge': Ridge, 'loaded': Loaded}
 
 
 def make_geometry(family, params):
