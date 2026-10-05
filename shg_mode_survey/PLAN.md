@@ -281,12 +281,22 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   (159 %/W/cm^2, same crossing, independently re-solved) -- see "`loaded_sweep1` re-run" finding.
   Across the whole family, 98.2% of screened crossings turn out window-limited, not just the
   smoke-test geometry's ~99%.
-- [ ] **`ridge`'s committed results (`trial_grid`, `wide_window`) predate the window/box-mode
-  check entirely and have never been verified against it.** Worth a pass before trusting their
-  "best" rows at face value the way `loaded`'s needed correcting -- likely lower risk (different
-  window sizing, lower-order/less suspicious node counts in the reported best crossings) but not
-  actually checked yet. `reprocess_run.py <run_name> survey_config` would backfill `sh_edge_ratio`
-  for already-refined rows from their existing exports, no EMode needed.
+- [x] **`trial_grid` verified clean against the window/box-mode check** -- see "`ridge` family
+  verified clean" finding below. Local `exports/` turned out to be gone (laptop-only, gitignored),
+  so this needed a fresh re-run rather than `reprocess_run.py`; 0 of 1109 newly-verified crossings
+  were window-limited. `ridge`'s committed "best" numbers need no correction.
+- [ ] **`wide_window` has not been independently re-verified** -- same family, same reasoning
+  (plain ridge, nothing to create the kind of shallow background region every `loaded`-family
+  artifact needed), but not actually re-run yet. Same mechanism as `trial_grid`'s re-run would
+  apply (`survey.py wide_window survey_config_wide`, ~2 geometries, wider SH window so likely
+  slower per geometry than `trial_grid`'s).
+- [ ] **New `hybrid` (AlN/SiNx) geometry family needs its em.plot(component='Index') geometry
+  check and smoke survey** -- `geometry.Hybrid` is written and unit-tested (masks tile correctly,
+  core embeds in shell, invalid dimensions rejected) but the actual EMode build (shape `priority`
+  for the AlN-over-SiNx overlap, the rectangular-shell convention) is unverified, same status
+  `loaded.Loaded` started at. `survey_config_hybrid_smoke.py` is ready to run once EMode is free.
+  Goal: re-attempt TM00->TM20 phase matching (per Honda et al. 2025, adapted to this project's UV
+  band) where plain `ridge` found none in 215-235 nm.
 
 ## References
 
@@ -638,3 +648,22 @@ conclusion stands unchanged.
 -- worth a pass before trusting their "best" rows at face value, the same way `loaded`'s needed
 correcting. Likely lower risk there (ridge's window is sized differently and its best crossings
 were lower-order, less suspicious node counts) but not actually checked.
+
+### `ridge` family verified clean: `trial_grid` re-run (2026-10-05, same day)
+
+`ridge`'s local `exports/`/`traces/` turned out to be gone -- only ever existed on the laptop
+(gitignored, never committed), so `reprocess_run.py` couldn't backfill from local files the way it
+did for `loaded`. Re-ran `trial_grid` fresh instead (same `max_sh_edge_ratio` fingerprint-change
+mechanism as `loaded_sweep1`'s re-run triggers this automatically). 18 geometries, 131 min, 0
+failures, old fingerprints kept alongside (36 geometries total now).
+
+**Zero window-limited crossings, out of 1109 newly-verified** (0 at screening time, 0 at full
+refine resolution) -- not even the oddest-looking result: the final geometry's best crossing
+(TM20->TM120 @ 221.38 nm) has `sh_edge_ratio` ~3e-11, about as clean as a mode gets, despite the
+suspiciously-high-sounding label. `ridge`'s committed "best" numbers across both `trial_grid` and
+(by the same reasoning, though not independently re-run) `wide_window` need no correction. This is
+a real structural difference from `loaded`, not a coincidence worth re-litigating every time: the
+plain ridge is a simple, strongly-guiding core directly on the substrate with nothing to create a
+shallow, weakly-confining background region for a box mode to hide near -- `loaded`'s unetched AlN
+film (and now `hybrid`'s SiNx shell) both have exactly that kind of shallow surrounding region,
+which is where every `loaded`-family window artifact was found living.
