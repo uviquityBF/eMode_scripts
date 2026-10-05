@@ -464,3 +464,12 @@ scattering + interface absorption" for pump / "native scattering only" for SH.
   undercounting the true crossing set for this family, especially the higher-NCE h_s=150
   geometries. Re-running with a larger `num_sh_modes` would be worth it before treating "293
   %/W/cm^2 is the best NCE in this family" as final.
+
+`cerenkov_run.py loaded_sweep1 --all` (all 40 pumps across the 8 geometries -- notably slower per
+pump than ridge's ~40s, 4-7 min each here, worth a look if this module gets used routinely for
+`loaded`): confirms the ridge family's conclusion holds here too -- kappa_C tops out at ~0.078
+%/W/cm (TM10, t=600/h_s=150/w_s=1000), negligible next to the guided channel. 35/40 rows have
+energy balance within ~3% of 1; the 5 that don't all have |kappa_C| <~1e-5 %/W/cm (near the
+solver's noise floor at that signal size, same as the energy-balance caveat already noted for
+ridge) -- not a new issue, just the existing caveat showing up for real on this family's first run
+through Step 1b.
