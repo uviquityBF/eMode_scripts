@@ -69,6 +69,7 @@ CROSS_FIELDS = ['fingerprint', 'family', 'params', 'status', 'pump_id', 'pump_la
                 'overlap_linear_emode', 'A_eff_pump_um2', 'A_eff_sh_um2',
                 'pump_scattering_dB_per_m', 'pump_absorption_dB_per_m',
                 'sh_scattering_dB_per_m', 'sh_absorption_dB_per_m',
+                'pump_edge_ratio', 'sh_edge_ratio', 'sh_edge_ratio_screen',
                 'L_opt_mm', 'L_eff_mm', 'peak_efficiency_pct_per_W', 'cerenkov_allowed_any',
                 'eta_screen_pct_per_W_cm2', 'overlap_shape_screen', 'sh_label_screen',
                 'export_path', 'pump_identify_similarity', 'sh_identify_similarity'] + TERM_FIELDS
@@ -76,19 +77,29 @@ CROSS_FIELDS = ['fingerprint', 'family', 'params', 'status', 'pump_id', 'pump_la
 
 # ----------------------------------------------------------------------------------------- I/O
 def append_rows(path, fieldnames, rows):
+    """Append `rows` (dicts) to a CSV, creating it (with `fieldnames`'s header) if needed.
+    If the file already has columns `fieldnames` doesn't (an older file, written before a field
+    was added to the caller's FIELDS list), the header is upgraded to the union -- and the
+    *appended* rows use that same unioned list too (not just the rewritten old ones), or the
+    appended rows end up with fewer cells than the header, a real bug hit 2026-10-05 adding
+    sh_edge_ratio_screen: silently correct-looking (DictWriter's extrasaction='ignore' drops the
+    new field instead of erroring) but every later pd.read_csv() would've paired old 'extra'
+    columns -- NaN for the new rows, not misaligned, since missing cells are always trailing, but
+    data for those fields was gone -- the new 'legitimate' columns that triggered the upgrade."""
     new = not (os.path.exists(path) and os.path.getsize(path) > 0)
+    full_fields = fieldnames
     if not new:  # upgrade an older file's header if columns were added since it was written
         with open(path, newline='') as f:
             old_rows = list(csv.DictReader(f))
-            old_fields = list(old_rows[0].keys()) if old_rows else fieldnames
-        if old_fields != fieldnames:
+        old_fields = list(old_rows[0].keys()) if old_rows else fieldnames
+        full_fields = fieldnames + [k for k in old_fields if k not in fieldnames]
+        if old_fields != full_fields:
             with open(path, 'w', newline='') as f:
-                w = csv.DictWriter(f, fieldnames=fieldnames + [k for k in old_fields if k not in fieldnames],
-                                   extrasaction='ignore')
+                w = csv.DictWriter(f, fieldnames=full_fields, extrasaction='ignore')
                 w.writeheader()
                 w.writerows(old_rows)
     with open(path, 'a', newline='') as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
+        w = csv.DictWriter(f, fieldnames=full_fields, extrasaction='ignore')
         if new:
             w.writeheader()
         for r in rows:
@@ -390,6 +401,7 @@ def sh_scan(em, geom, cfg, lam_sh, pumps, groups):
                         'eta_screen': eta, 'shape_screen': sp.overlap_shape_factor(Es, p['E'][kp], d_map, dA),
                         'label_screen': sp.mode_label(Es, t['te'][k], mask),
                         'A_shg_screen': sp.shg_effective_area_um2(eta, n_x, n_x, 2 * lam_x, d_ref),
+                        'edge_ratio_screen': sp.lateral_edge_ratio(Es, x),
                         'terms': sp.overlap_terms(Es, p['E'][kp], d_map, dA, lam_x)})
             st['prev_E'], st['prev_small'] = cur_E, cur_small
     all_tracks = [(g, t) for g, st in enumerate(state) if st['tracker'] for t in st['tracker'].tracks]
@@ -537,23 +549,33 @@ def run_geometry(geom, cfg, run_dir, fp, pumps_only=False):
         t0 = time.time()
         crossings.sort(key=lambda c: -c['eta_screen'])
         min_eta = cfg['refine_min_nce_pct'] * 1e2  # %/W/cm^2 -> 1/(W m^2)
-        rows = []
-        for j, c in enumerate(crossings):
+        max_edge = cfg['max_sh_edge_ratio']
+        rows, n_offered, n_window_skipped = [], 0, 0
+        for c in crossings:
             base = {'pump_id': c['pump']['id'], 'pump_label': c['pump']['label'],
                     'pump_sym_class': c['pump']['cls'], 'sh_track': c['track'],
                     'eta_screen_pct_per_W_cm2': sp.eta_to_pct_per_W_cm2(c['eta_screen']),
-                    'overlap_shape_screen': c['shape_screen'], 'sh_label_screen': c['label_screen']}
-            if j < cfg['refine_top_n'] and c['eta_screen'] >= min_eta:
-                path = os.path.join(run_dir, 'exports', f'{fp}_x{j:02d}.npz')
+                    'overlap_shape_screen': c['shape_screen'], 'sh_label_screen': c['label_screen'],
+                    'sh_edge_ratio_screen': c['edge_ratio_screen']}
+            # A crossing above max_edge is a window/box-mode artifact at screening fidelity
+            # already (same field used for eta_screen, not a lower-resolution proxy) -- skip it
+            # for refinement entirely rather than spend refine_top_n's budget confirming that.
+            eligible = c['edge_ratio_screen'] <= max_edge
+            if not eligible:
+                n_window_skipped += 1
+            elif n_offered < cfg['refine_top_n'] and c['eta_screen'] >= min_eta:
+                path = os.path.join(run_dir, 'exports', f'{fp}_x{n_offered:02d}.npz')
+                n_offered += 1
                 try:
                     rows.append({**base, **refine_crossing(em, geom, cfg, c, path)})
                     continue
                 except Exception as e:  # noqa: BLE001 -- one bad crossing shouldn't lose the rest
-                    log(run_dir, f"  crossing {j} refine failed ({e!r}); keeping screened values")
+                    log(run_dir, f"  crossing refine failed ({e!r}); keeping screened values")
             rows.append({**screened_row(c), **base})
         n_ref = sum(r['status'] == 'refined' for r in rows)
         log(run_dir, f"  refine ({time.time() - t0:.0f}s): {n_ref} refined, "
-                     f"{len(rows) - n_ref} screened-only")
+                     f"{len(rows) - n_ref} screened-only "
+                     f"({n_window_skipped} of those skipped for refinement as window-limited)")
     finally:
         em.close(save=False)
     return pumps, rows

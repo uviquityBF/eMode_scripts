@@ -23,6 +23,14 @@ SETTINGS = {
     # refinement (re-solve at the crossing + losses + field export) for the best screened ones
     'refine_top_n': 8,               # per geometry
     'refine_min_nce_pct': 0.01,      # [%/W/cm^2] don't refine below this screened NCE
+    # a crossing whose screened SH field hasn't decayed to this fraction of its own peak by the
+    # simulation window's edge is a window/box-mode artifact (quantized by the window's hard
+    # walls, not real lateral confinement -- see shg_physics.lateral_edge_ratio), excluded from
+    # refine_top_n's candidate pool so the refine budget isn't spent on it. Same default as
+    # summarize_run.py's MAX_SH_EDGE_RATIO, which independently re-checks at full refined
+    # resolution as a second pass -- found 2026-10-05 after a sweep's reported best crossing
+    # (NCE 293 %/W/cm^2) turned out to be exactly this; see PLAN.md.
+    'max_sh_edge_ratio': 0.02,
     # numerics
     'resolution': 10.0,              # [nm] x and y
     # roughness (EMode-native scattering), [vertical (sidewall), horizontal (top/bottom)]

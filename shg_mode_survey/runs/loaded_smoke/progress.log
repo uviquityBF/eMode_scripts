@@ -1,7 +1,7 @@
-[23:16:47] run 'loaded_smoke' (survey_config_loaded_smoke): 1 geometries, 0 already done, 1 to do
-[23:16:47] [1/1] loaded t=354 e=0 custom h_s=70 w_s=500  (439c150e7b86)
-[23:17:56]   pumps (46s): TE00[S] 2.1521, TM00[A] 2.1492, TM10[S] 2.1104, TM20[A] 2.1038, TE10[A] 2.0606
-[23:21:00]   SH scan (184s): 152 SH tracks, 317 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
-[23:22:38]   refine (98s): 8 refined, 309 screened-only
-[23:22:39]   done in 352s; best: TM00->TM165? @ 225.38 nm, NCE 33.4 %/W/cm^2 (refined)
-[23:22:39]   elapsed 5.9 min, est. remaining 0.0 min
+[10:56:02] run 'loaded_smoke' (survey_config_loaded_smoke): 1 geometries, 0 already done, 1 to do
+[10:56:02] [1/1] loaded t=354 e=0 custom h_s=70 w_s=500  (f4126f128e02)
+[10:57:14]   pumps (48s): TE00[S] 2.1521, TM00[A] 2.1492, TM10[S] 2.1104, TM20[A] 2.1038, TE10[A] 2.0606
+[11:00:25]   SH scan (191s): 152 SH tracks, 317 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[11:00:37]   refine (11s): 1 refined, 316 screened-only (313 of those skipped for refinement as window-limited)
+[11:00:37]   done in 276s; best: TM00->TM244? @ 221.13 nm, NCE 22.4 %/W/cm^2 (screened)
+[11:00:37]   elapsed 4.6 min, est. remaining 0.0 min

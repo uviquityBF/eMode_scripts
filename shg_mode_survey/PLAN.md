@@ -9,10 +9,12 @@ than `ridge`, but loss-limited peak efficiency collapses ~40,000x below `ridge`'
 TiO2 absorption is included -- TiO2 looks like the wrong strip material, not just a materials-data
 gap. User review of the field plots then caught a second issue: most of that sweep's top-NCE
 crossings (81% of refined, 100% in `loaded_smoke`) turned out to be simulation-window artifacts
-(box modes mimicking confined ones), not real -- now filtered out of the ranked results
-(`shg_physics.lateral_edge_ratio`, `summarize_run.py`), but the deeper fix (refinement is wasting
-most of its budget on exactly these) is still an open decision (see "Implementation status &
-findings" at the end, 2026-10-04/05 entries, and "Open items"). Builds on `loss_vs_dimensions/`
+(box modes mimicking confined ones), not real. Fixed both where it's reported
+(`shg_physics.lateral_edge_ratio`, `summarize_run.py`) and at the source: `sh_scan()` now screens
+for this before deciding what to refine, so `refine_top_n`'s budget goes to real candidates (only
+4 of `loaded_smoke`'s 317 screened crossings were even eligible). `loaded_sweep1`'s full sweep
+still needs re-running with this active (see "Implementation status & findings" at the end,
+2026-10-04/05 entries, and "Open items"). Builds on `loss_vs_dimensions/`
 and borrows from `phase_matching_pipeline/`.
 
 ## Goal
@@ -264,13 +266,15 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   strip for a nonlinear, lower-loss material (ScAlN -- Bäumler fit already done, needs
   `strip_chi2`/`d_tensors_pm` wiring and a `strip_eq`/`strip_loss_eq` built the same way as TiO2's)
   instead of (or combined with) iterating on TiO2 geometry parameters.
-- [ ] **Refine-selection is spending most of its budget on window/box-mode artifacts, not just
-  reporting them** -- see "Window/box-mode artifacts" findings below. 81% of `loaded_sweep1`'s
-  refined crossings (100% of `loaded_smoke`'s) are window-limited, meaning `refine_top_n`'s
-  screened-NCE ranking is being systematically gamed by exactly the crossings that turn out not to
-  be real. Needs a decision between widening the simulation window vs. screen-time filtering
-  (both described there) before the next `loaded`-family sweep, or results will keep needing this
-  same after-the-fact correction.
+- [x] **Refine-selection was spending most of its budget on window/box-mode artifacts, not just
+  reporting them** -- see "Window/box-mode artifacts" / "Screen-time window/box-mode filtering"
+  findings below. User chose screen-time filtering (option 2) over widening the window (option 1).
+  `sh_scan()` now computes `lateral_edge_ratio` at screening time (full resolution, same field
+  `eta_screen` uses -- no fidelity gap to validate) and `run_geometry()` skips window-limited
+  crossings when filling `refine_top_n`. Re-ran `loaded_smoke` clean: only 4 of 317 screened
+  crossings were even eligible for refinement. `loaded_sweep1`'s full 8-geometry sweep still needs
+  re-running with this active -- its "159 %/W/cm^2 real best" is from report-time filtering only,
+  not yet benefiting from the better-targeted refine budget.
 
 ## References
 
@@ -554,3 +558,49 @@ energy balance within ~3% of 1; the 5 that don't all have |kappa_C| <~1e-5 %/W/c
 solver's noise floor at that signal size, same as the energy-balance caveat already noted for
 ridge) -- not a new issue, just the existing caveat showing up for real on this family's first run
 through Step 1b.
+
+### Screen-time window/box-mode filtering (2026-10-05, same day, user chose option 2 of the two
+candidate fixes above)
+
+`Es`, the field `sh_scan()` already holds for a crossing at screening time, turns out to be the
+*full-resolution* solve (Ex/Ey/Ez on the actual simulation grid, same field `eta_screen` itself is
+computed from) -- not the downsampled Ex/Ey-only `small()` field used for step-to-step tracking,
+which the previous entry's option 2 worried would need a fidelity check first. So
+`shg_physics.lateral_edge_ratio(Es, x)` is computed directly, no proxy, no validation gap:
+`sh_scan()` now stores it per crossing (`edge_ratio_screen`), and `run_geometry()`'s refine
+selection skips any crossing above `cfg['max_sh_edge_ratio']` (0.02, new `SETTINGS` key --
+deliberately part of the fingerprint, since it changes which crossings get refined) when filling
+`refine_top_n`, rather than spending the budget confirming what screening already knows.
+`screened_row()` now also carries `sh_edge_ratio_screen`, so **every** crossing -- not just
+refined ones -- gets a verdict; `summarize_run.py` updated to use it as a fallback wherever the
+full `sh_edge_ratio` isn't available (refined rows still prefer that one).
+
+Re-ran `loaded_smoke` clean: of 317 screened crossings, only **4 were eligible** for refinement at
+all (edge_ratio_screen <= 0.02) -- confirming the earlier finding that ~99% of this specific
+geometry's crossings are window artifacts, not an 81%-vs-100% difference between two runs. Only 1
+of those 4 got refined (the rest fell below `refine_min_nce_pct`); its screen-time and full-refine
+edge ratios agree to within ~1% (0.00643 vs 0.00635), validating that the screening-stage check is
+exactly as reliable as the refined one, as expected since it's the same-resolution field. That one
+verified-real crossing (TM20->TM04 @ 230.99 nm) has NCE only 0.045 %/W/cm^2 -- this specific
+geometry (h_s=70/w_s=500) genuinely doesn't support a good phase match once artifacts are removed;
+the sweep's better geometries (h_s=150, w_s=1000) are where the real ~150 %/W/cm^2 result lives.
+
+**Second bug found and fixed while implementing this**: `CROSS_FIELDS` (the fixed column list
+`append_rows()`'s `csv.DictWriter(..., extrasaction='ignore')` uses) was never updated when
+`pump_edge_ratio`/`sh_edge_ratio` were added for the post-solve-perturbation loss work, and
+`sh_edge_ratio_screen` was never added either -- both silently dropped from newly-appended rows.
+Worse, `append_rows()` itself had a latent bug: when it detects an older file's header needs new
+columns, it rewrites the header to the union but was still *appending* new rows with the
+narrower original fieldnames list, so new rows ended up with fewer CSV cells than the (correctly
+upgraded) header -- not content-misaligned (pandas pads short rows at the end with NaN), but the
+new fields' real data was gone for exactly the rows that should have had it. Fixed both: added the
+three field names to `CROSS_FIELDS`, and `append_rows()` now uses the same unioned fieldname list
+for the upgrade pass and the append pass. Added `test_survey.py` to cover the append_rows fix
+directly (a synthetic two-write scenario exercising the exact bug). `loaded_smoke`'s crossings.csv
+had already been corrupted this way by the first (pre-fix) re-run attempt -- deleted and re-run
+clean rather than patched.
+
+Not yet done: re-running `loaded_sweep1`'s full 8-geometry sweep with this fix active, to get a
+properly-filtered-at-the-source "real best NCE" for the whole family (today's 159 %/W/cm^2 number
+is from the report-time filter only -- still correct, just not benefiting from the better-targeted
+refine budget this unlocks).

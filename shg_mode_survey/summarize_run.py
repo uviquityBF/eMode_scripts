@@ -148,13 +148,21 @@ def main(run_name):
             'overlap_shape', 'A_shg_um2', 'A_eff_pump_um2', 'A_eff_sh_um2'] + \
            (['sh_edge_ratio'] if 'sh_edge_ratio' in c else []) + ['status']
 
-    # Window/box-mode flag: only decidable for refined rows (they have a field export); screened
-    # rows pass through un-vetted (counted below, not silently dropped).
-    if 'sh_edge_ratio' in c:
-        c['sh_window_limited'] = c['sh_edge_ratio'] > MAX_SH_EDGE_RATIO
+    # Window/box-mode flag: refined rows have sh_edge_ratio (full resolution, post-re-identify);
+    # screened-only rows fall back to sh_edge_ratio_screen (full-resolution field too -- the one
+    # eta_screen itself is computed from -- just not re-identified/re-solved), present on any run
+    # survey.py produced after screen-time filtering was added. A run with neither column (older,
+    # not reprocessed) can't be checked at all.
+    has_refined_check = 'sh_edge_ratio' in c
+    has_screen_check = 'sh_edge_ratio_screen' in c
+    if has_refined_check or has_screen_check:
+        edge = c['sh_edge_ratio'] if has_refined_check else pd.Series(np.nan, index=c.index)
+        if has_screen_check:
+            edge = edge.fillna(c['sh_edge_ratio_screen'])
+        c['sh_window_limited'] = edge > MAX_SH_EDGE_RATIO
         trustworthy = c[~c['sh_window_limited'].fillna(False)]
-        n_unverified_screened = int(((c['status'] == 'screened')).sum())
-    else:  # older run, reprocess_run.py not yet run against it -- no filtering possible
+        n_unverified_screened = int(edge.isna().sum())
+    else:  # older run, predates this check entirely -- no filtering possible
         trustworthy = c
         n_unverified_screened = 0
 
@@ -179,19 +187,22 @@ def main(run_name):
                 "survey.bulk_absorption_loss; 0 wherever a geometry has no lossy region defined). "
                 "overlap_shape is 0..1; A_shg is the plane-wave-equivalent interaction area for "
                 "AlN d33.\n\n")
-        if 'sh_edge_ratio' in c:
+        if has_refined_check or has_screen_check:
             n_flagged = int(c['sh_window_limited'].fillna(False).sum())
-            f.write(f"**Window/box-mode filter**: {n_flagged} refined crossing(s) with "
-                    f"`sh_edge_ratio` > {MAX_SH_EDGE_RATIO} excluded from every table below -- the "
-                    "SH field hasn't decayed by the simulation window's edge, meaning it's at least "
-                    "partly an artifact of the window's hard walls rather than real lateral "
-                    "confinement (see `shg_physics.lateral_edge_ratio`). Full data, flag included, "
-                    "stays in `crossings.csv`.")
+            f.write(f"**Window/box-mode filter**: {n_flagged} crossing(s) with an edge ratio > "
+                    f"{MAX_SH_EDGE_RATIO} excluded from every table below -- the SH field hasn't "
+                    "decayed by the simulation window's edge, meaning it's at least partly an "
+                    "artifact of the window's hard walls rather than real lateral confinement "
+                    "(see `shg_physics.lateral_edge_ratio`). Checked at full-refined resolution "
+                    "(`sh_edge_ratio`) where refined, at screening resolution "
+                    "(`sh_edge_ratio_screen`, same field `eta_screen` itself used) otherwise; "
+                    "`survey.py` also now skips window-limited crossings when choosing what to "
+                    "refine, so new runs shouldn't need the refined check to catch many. Full "
+                    "data, flag included, stays in `crossings.csv`.")
             if n_unverified_screened:
-                f.write(f" **{n_unverified_screened} screened-only crossing(s) have no field export "
-                        "and so could not be checked** -- they pass through unflagged, not verified "
-                        "clean; re-run with a higher `refine_top_n` (or refine them individually) "
-                        "before trusting a screened-only entry in these tables.")
+                f.write(f" **{n_unverified_screened} crossing(s) predate this check (no "
+                        "`sh_edge_ratio_screen`) and could not be verified either way** -- they "
+                        "pass through unflagged, not verified clean; re-run `survey.py` to refresh.")
             f.write("\n\n")
         f.write("## Top 25 by NCE\n\n" + md_table(top_nce, cols, fmt) + "\n\n")
         f.write("## Top 25 by loss-limited peak efficiency (refined)\n\n" +
