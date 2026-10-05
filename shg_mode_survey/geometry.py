@@ -94,6 +94,18 @@ class Ridge:
         return build_core_mask_from_geometry(x, y, p['h_core'], p['w_core'], p['sidewall_angle'],
                                              p['substrate_height'])
 
+    def region_masks(self, x, y):
+        """{name: (mask, material_label)} tiling the whole cross-section -- for plotting (e.g.
+        plot_geometry.py), no EMode needed."""
+        p = self.params
+        xx, yy = np.meshgrid(np.asarray(x, float), np.asarray(y, float))
+        core = self.core_mask(x, y)
+        substrate = (yy < p['substrate_height']) & ~core
+        topclad = (yy >= p['substrate_height']) & ~core
+        return {'Substrate': (substrate, p['substrate_material']),
+                'core': (core, 'AlN'),
+                'TopClad': (topclad, p['topclad_material'])}
+
     def chi2_map(self, x, y, d_tensors_pm):
         """{'d33','d31','d15'} arrays [m/V], shape (ny, nx), nonzero only in chi(2) regions."""
         mask = self.core_mask(x, y).astype(float)
@@ -274,6 +286,19 @@ class Loaded:
     def core_mask(self, x, y):
         """The AlN film (the growth-interface / chi(2) reference region)."""
         return self._masks(x, y)[0]
+
+    def region_masks(self, x, y):
+        """{name: (mask, material_label)} tiling the whole cross-section -- for plotting (e.g.
+        plot_geometry.py), no EMode needed."""
+        p = self.params
+        xx, yy = np.meshgrid(np.asarray(x, float), np.asarray(y, float))
+        film, strip = self._masks(x, y)
+        substrate = (yy < p['substrate_height']) & ~film & ~strip
+        topclad = (yy >= p['substrate_height']) & ~film & ~strip
+        return {'Substrate': (substrate, p['substrate_material']),
+                'film': (film, 'AlN'),
+                'strip': (strip, self._strip_material_name()),
+                'TopClad': (topclad, p['topclad_material'])}
 
     def chi2_map(self, x, y, d_tensors_pm):
         film, strip = self._masks(x, y)

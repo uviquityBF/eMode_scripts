@@ -61,6 +61,12 @@ def plot_one(row, out_path):
     plt.close(fig)
 
 
+def safe_label(label):
+    """Mode labels can carry a trailing '?' (hybrid/ambiguous node count) -- invalid in a Windows
+    filename, so swap it for 'h' there only (never in titles/display)."""
+    return str(label).replace('?', 'h')
+
+
 def main(run_name, max_plots=20):
     run_dir = os.path.join(HERE, 'runs', run_name)
     d = pd.read_csv(os.path.join(run_dir, 'crossings.csv'))
@@ -68,7 +74,8 @@ def main(run_name, max_plots=20):
     os.makedirs(os.path.join(run_dir, 'plots'), exist_ok=True)
     for _, row in d.iterrows():
         name = os.path.splitext(os.path.basename(row['export_path']))[0]
-        out = os.path.join(run_dir, 'plots', f"{name}_{row['pump_label']}_{row['sh_label']}.png")
+        out = os.path.join(run_dir, 'plots',
+                           f"{name}_{safe_label(row['pump_label'])}_{safe_label(row['sh_label'])}.png")
         plot_one(row, out)
         print(out)
 

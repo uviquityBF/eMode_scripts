@@ -54,6 +54,19 @@ def test_loaded_lossy_mask_and_loss():
           f"{mask.mean():.3f}, bulk_loss(225nm)={loss:.3e} dB/m")
 
 
+def test_region_masks_tile_the_cross_section():
+    x = np.linspace(-1200, 1200, 241)
+    y = np.linspace(0, 2200, 221)
+    for fam, params in (('ridge', {'h_core': 350.0, 'w_core': 400.0}),
+                        ('loaded', {'t_film': 354.0, 'etch_depth': 0.0, 'h_s': 70.0, 'w_s': 500.0})):
+        g = geo.make_geometry(fam, params)
+        regions = g.region_masks(x, y)
+        total = sum(mask.astype(int) for mask, _ in regions.values())
+        assert np.all(total == 1), (fam, 'regions overlap or leave gaps')
+        assert regions['Substrate'][0][0, 0]  # bottom-left corner is substrate
+        print(f"{fam} region_masks OK: {list(regions)} tile the cross-section with no gaps/overlaps")
+
+
 def test_ridge_has_no_lossy_region():
     g = geo.make_geometry('ridge', {'h_core': 350.0, 'w_core': 400.0})
     x = np.linspace(-1000, 1000, 101)
@@ -82,6 +95,7 @@ if __name__ == '__main__':
     test_eval_complex_index_equation()
     test_material_loss_matches_shg_physics()
     test_loaded_lossy_mask_and_loss()
+    test_region_masks_tile_the_cross_section()
     test_ridge_has_no_lossy_region()
     test_tio2_fit_equation_sanity()
     print('all passed')
