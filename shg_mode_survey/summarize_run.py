@@ -6,7 +6,7 @@ Writes runs/<run>/summary/:
   nce_vs_width.png           NCE (log) vs core width, one panel per height, coloured by pump mode
   peak_vs_width.png          loss-limited peak efficiency vs width (refined crossings only)
   lambda_vs_width.png        phase-matching wavelength vs width
-  dispersion/<fp>.png        pump n_eff(lambda_SH) curves, SH tracks, crossings -- per geometry
+  dispersion/<geom>.png        pump n_eff(lambda_SH) curves, SH tracks, crossings -- per geometry
 Usage: python summarize_run.py <run_name>
 """
 
@@ -21,6 +21,8 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import geometry as geo  # noqa: E402
 # fixed categorical order (pump identity), never cycled; anything else -> muted gray
 PUMP_COLORS = {'TM00': '#2a78d6', 'TM10': '#eb6834', 'TM01': '#1baf7a', 'TE00': '#eda100',
                'TE01': '#e87ba4', 'TM20': '#008300', 'TE10': '#4a3aa7', 'TM02': '#e34948'}
@@ -47,6 +49,7 @@ def load(run_dir):
         p = df['params'].apply(json.loads)
         df['h'] = p.apply(lambda d: d.get('h_core'))
         df['w'] = p.apply(lambda d: d.get('w_core'))
+        df['geom'] = [geo.make_geometry(f, d).describe() for f, d in zip(df['family'], p)]
     c['pair'] = c['pump_label'] + '->' + c['sh_label']
     return c, g
 
@@ -130,14 +133,15 @@ def main(run_name):
            'A_eff_sh_um2': '{:.3f}', 'L_opt_mm': '{:.2f}', 'peak_efficiency_pct_per_W': '{:.3g}',
            'sh_te_fraction': '{:.2f}', 'pump_scattering_dB_per_m': '{:.0f}',
            'sh_scattering_dB_per_m': '{:.0f}'}
-    cols = ['h', 'w', 'pump_label', 'sh_label', 'sh_te_fraction', 'wavelength_sh', 'eta_pct_per_W_cm2',
+    ridge_only = bool((g['family'] == 'ridge').all())  # h/w columns + vs-width plots
+    cols = (['h', 'w'] if ridge_only else ['geom']) + ['pump_label', 'sh_label', 'sh_te_fraction', 'wavelength_sh', 'eta_pct_per_W_cm2',
             'overlap_shape', 'A_shg_um2', 'A_eff_pump_um2', 'A_eff_sh_um2', 'status']
     top_nce = c.sort_values('eta_pct_per_W_cm2', ascending=False).head(25)
     ref = c[c['status'] == 'refined']
     top_peak = ref.sort_values('peak_efficiency_pct_per_W', ascending=False).head(25)
     top_nce.to_csv(os.path.join(out, 'top_by_nce.csv'), index=False)
     top_peak.to_csv(os.path.join(out, 'top_by_peak.csv'), index=False)
-    best = c.loc[c.groupby('fingerprint')['eta_pct_per_W_cm2'].idxmax()].sort_values(['h', 'w'])
+    best = c.loc[c.groupby('fingerprint')['eta_pct_per_W_cm2'].idxmax()].sort_values(['h', 'w'] if ridge_only else 'geom')
     tm = c[(c['sh_te_fraction'] < 0.5) & c['pump_label'].str.startswith('TM')]
     pair_best = (tm.sort_values('eta_pct_per_W_cm2', ascending=False)
                  .groupby('pair').head(1).head(20))
@@ -152,12 +156,24 @@ def main(run_name):
                 "AlN d33.\n\n")
         f.write("## Top 25 by NCE\n\n" + md_table(top_nce, cols, fmt) + "\n\n")
         f.write("## Top 25 by loss-limited peak efficiency (refined)\n\n" +
-                md_table(top_peak, cols[:6] + ['eta_pct_per_W_cm2', 'pump_scattering_dB_per_m',
-                                               'sh_scattering_dB_per_m', 'L_opt_mm',
-                                               'peak_efficiency_pct_per_W'], fmt) + "\n\n")
+                md_table(top_peak, cols[:cols.index('wavelength_sh') + 1] +
+                         ['eta_pct_per_W_cm2', 'pump_scattering_dB_per_m', 'sh_scattering_dB_per_m',
+                          'L_opt_mm', 'peak_efficiency_pct_per_W'], fmt) + "\n\n")
         f.write("## Best TM->TM pairs (best instance of each pump->SH pair)\n\n" +
                 md_table(pair_best, cols, fmt) + "\n\n")
         f.write("## Best crossing per geometry\n\n" + md_table(best, cols, fmt) + "\n")
+    if ridge_only and len(c):
+        vs_width_plots(c, ref, out)
+    for _, r in g[g['status'] == 'ok'].iterrows():
+        tp = os.path.join(run_dir, 'traces', f"{r['fingerprint']}.npz")
+        if os.path.exists(tp):
+            name = f"h{r['h']:g}_w{r['w']:g}" if ridge_only else r['fingerprint']
+            dispersion_plot(run_dir, r['fingerprint'], c, r['geom'],
+                            os.path.join(out, 'dispersion', f"{name}.png"))
+    print(f"wrote {out}")
+
+
+def vs_width_plots(c, ref, out):
     scatter_vs_width(c, 'eta_pct_per_W_cm2', 'NCE [%/W/cm²]', os.path.join(out, 'nce_vs_width.png'),
                      title='Guided phase matches in the SH window: normalized conversion efficiency')
     if len(ref):
@@ -167,12 +183,6 @@ def main(run_name):
     scatter_vs_width(c, 'wavelength_sh', 'phase-matched SH wavelength [nm]',
                      os.path.join(out, 'lambda_vs_width.png'), log=False,
                      title='Where each phase match falls in the SH window')
-    for _, r in g[g['status'] == 'ok'].iterrows():
-        tp = os.path.join(run_dir, 'traces', f"{r['fingerprint']}.npz")
-        if os.path.exists(tp):
-            dispersion_plot(run_dir, r['fingerprint'], c, f"h={r['h']:g} w={r['w']:g}",
-                            os.path.join(out, 'dispersion', f"h{r['h']:g}_w{r['w']:g}.png"))
-    print(f"wrote {out}")
 
 
 if __name__ == '__main__':

@@ -15,6 +15,8 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+import geometry as geo  # noqa: E402
 
 
 def plot_one(row, out_path):
@@ -50,7 +52,8 @@ def plot_one(row, out_path):
         ax.contour(x[xs], y[ys], crop(mask).astype(float), levels=[0.5], colors='k', linewidths=0.8)
         ax.set_title(title, fontsize=10)
         ax.set_xlabel('x [nm]')
-    fig.suptitle(f"{row['family']} h={json.loads(row['params'])['h_core']:g} w={json.loads(row['params'])['w_core']:g}\n{row['pump_label']} -> {row['sh_label']} @ "
+    desc = geo.make_geometry(row['family'], json.loads(row['params'])).describe()
+    fig.suptitle(f"{desc}\n{row['pump_label']} -> {row['sh_label']} @ "
                  f"{row['wavelength_sh']:.2f} nm   NCE {row['eta_pct_per_W_cm2']:.3g} %/W/cm^2   "
                  f"shape overlap {row['overlap_shape']:.4f}", fontsize=10)
     fig.tight_layout()
