@@ -11,10 +11,13 @@ gap. User review of the field plots then caught a second issue: most of that swe
 crossings (81% of refined, 100% in `loaded_smoke`) turned out to be simulation-window artifacts
 (box modes mimicking confined ones), not real. Fixed both where it's reported
 (`shg_physics.lateral_edge_ratio`, `summarize_run.py`) and at the source: `sh_scan()` now screens
-for this before deciding what to refine, so `refine_top_n`'s budget goes to real candidates (only
-4 of `loaded_smoke`'s 317 screened crossings were even eligible). `loaded_sweep1`'s full sweep
-still needs re-running with this active (see "Implementation status & findings" at the end,
-2026-10-04/05 entries, and "Open items"). Builds on `loss_vs_dimensions/`
+for this before deciding what to refine, so `refine_top_n`'s budget goes to real candidates.
+Re-ran the full sweep with the fix active: **98.2% of all screened crossings across the family
+turn out window-limited**, not just the smoke-test geometry's ~99% -- but the corrected headline
+NCE is unchanged at 159 %/W/cm^2 (TM00->TM05?, h_s=150/w_s=1000), confirming the fix improves
+efficiency/coverage without changing the physics conclusion. `ridge`'s older committed results
+predate this check entirely and haven't been verified against it yet (see "Implementation status &
+findings" at the end, 2026-10-04/05 entries, and "Open items"). Builds on `loss_vs_dimensions/`
 and borrows from `phase_matching_pipeline/`.
 
 ## Goal
@@ -274,7 +277,16 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   crossings when filling `refine_top_n`. Re-ran `loaded_smoke` clean: only 4 of 317 screened
   crossings were even eligible for refinement. `loaded_sweep1`'s full 8-geometry sweep still needs
   re-running with this active -- its "159 %/W/cm^2 real best" is from report-time filtering only,
-  not yet benefiting from the better-targeted refine budget.
+  not yet benefiting from the better-targeted refine budget. **Done**: re-ran, headline unchanged
+  (159 %/W/cm^2, same crossing, independently re-solved) -- see "`loaded_sweep1` re-run" finding.
+  Across the whole family, 98.2% of screened crossings turn out window-limited, not just the
+  smoke-test geometry's ~99%.
+- [ ] **`ridge`'s committed results (`trial_grid`, `wide_window`) predate the window/box-mode
+  check entirely and have never been verified against it.** Worth a pass before trusting their
+  "best" rows at face value the way `loaded`'s needed correcting -- likely lower risk (different
+  window sizing, lower-order/less suspicious node counts in the reported best crossings) but not
+  actually checked yet. `reprocess_run.py <run_name> survey_config` would backfill `sh_edge_ratio`
+  for already-refined rows from their existing exports, no EMode needed.
 
 ## References
 
@@ -604,3 +616,25 @@ Not yet done: re-running `loaded_sweep1`'s full 8-geometry sweep with this fix a
 properly-filtered-at-the-source "real best NCE" for the whole family (today's 159 %/W/cm^2 number
 is from the report-time filter only -- still correct, just not benefiting from the better-targeted
 refine budget this unlocks).
+
+### `loaded_sweep1` re-run with screen-time filtering active (2026-10-05, same day)
+
+Re-ran the full 8-geometry sweep (old fingerprints kept alongside, per the usual checkpoint
+convention -- `summarize_run.py` now reports "16 geometries", 8 old + 8 new). 75 min, 0 failures.
+Across the new run's 2399 screened crossings, only **44 (1.8%) were eligible for refinement**
+(2355, 98.2%, window-limited at screening) -- generalizing the single-geometry smoke-test finding
+(~99% artifacts) to the whole family, not an outlier. 32 of the 44 eligible ones got refined
+(fewer than the old run's 64, since several geometries simply don't have 8 eligible candidates --
+budget no longer being forced to fill).
+
+**Headline NCE is unchanged: 159 %/W/cm^2 (TM00->TM05?, h_s=150/w_s=1000)** -- reassuring
+cross-check that the earlier report-time-only filter had already found the correct answer; this
+run's value is the same crossing, re-solved independently, confirming the fix improves efficiency
+and verification coverage without changing the physics conclusion. TiO2-strip-as-wrong-material
+conclusion stands unchanged.
+
+**Open follow-up, not yet done**: the `ridge` family's committed results (`trial_grid`,
+`wide_window`) predate this entire window/box-mode check and have never been verified against it
+-- worth a pass before trusting their "best" rows at face value, the same way `loaded`'s needed
+correcting. Likely lower risk there (ridge's window is sized differently and its best crossings
+were lower-order, less suspicious node counts) but not actually checked.
