@@ -1,9 +1,9 @@
 # SHG Mode Survey — Plan
 
-Status (2026-10-03): Step 1 and Step 1b implemented for the `ridge` family and trial-run (see
-README.md for how to run, and "Implementation status & findings" at the end). Step 2 pending
-geometry parameterization. Builds on `loss_vs_dimensions/` and borrows from
-`phase_matching_pipeline/`.
+Status (2026-10-04): Step 1 and Step 1b implemented for the `ridge` family and trial-run; Step 2's
+`loaded` family implemented and geometry-verified, but its loss numbers are not yet trustworthy
+(see "Implementation status & findings" at the end, 2026-10-04 entry). Builds on
+`loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
 
 ## Goal
 
@@ -182,10 +182,41 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
 
 ## Open items
 
-- [ ] Geometry parameterization (colleague's slides) — needed for Step 2 only.
-- [ ] k(λ) for AlN near 215 nm, ScAlN (Bäumler 2019 — paywalled; user checking), AlGaN, TiO2.
+- [x] Geometry parameterization (colleague's slides) — `loaded` family implemented
+  (`geometry.Loaded`, John Carlson deck slides 10-15) and mask/EMode-plot conventions verified
+  2026-10-04 (see findings below). Other Step 2 families (rib, AlN/AlScN/AlN tri-layer, AlScN
+  ridge on AlN) still TBD.
+- [ ] k(λ) for AlN near 215 nm, AlGaN. ScAlN done (Bäumler 2019 digitized + damped-Sellmeier fit,
+  `materials/fit_baumler_sellmeier.py`) but **not yet wired into any geometry/survey_config** --
+  `d_tensors_pm`/material equations still only define AlN. TiO2 done the same way
+  (`materials/fit_tio2_sellmeier.py`, Siefke et al. 2016) and **is** wired into
+  `survey_config_loaded.py`, but see the bulk-loss blocker below -- only the real (n) part is
+  usable right now, not the loss.
+- [ ] **Bulk-absorption loss (SH-wavelength loss model item 1) is not actually wired up, and the
+  PLAN's original assumption about how to do it is wrong.** Found 2026-10-04 while smoke-testing
+  `loaded` with real TiO2 k data (see findings below): a complex (lossy) `refractive_index_equation`
+  crashes `em.FDM()` outright, and `add_material(loss=...)` silently does nothing (verified via
+  `report()`). The only mechanism confirmed to work is `shape(loss_dB_per_m=...)` -- deprecated in
+  EMode's own message, but functional and correctly confinement-weighted. Needs: geometry builders
+  computing bulk alpha(lambda) from their own n,k models and re-setting it on the lossy shape(s) at
+  every solve wavelength (pump band and SH band need very different values), which `geometry.py` /
+  `survey.py` don't do yet. `shg_physics.bulk_loss_dB_per_m` (Im(n_eff) -> dB/m) is written and
+  tested but currently unused -- it was the first (wrong) approach; keep it for a legitimate future
+  Im(n_eff) source (e.g. PML leakage loss) but it will never fire via bulk material k through the
+  normal solve path.
+- [ ] **`native_scattering()` returns NaN for every pump and SH mode in the `loaded` family**
+  (confirmed 2026-10-04: 5/5 pumps and all crossings in a `loaded_smoke` run) -- `em.scattering()`
+  itself succeeds but the following `em.get_shape()` call fails ('NoneType' object is not
+  subscriptable), so scattering loss is silently treated as zero. Works fine for `ridge`/`core` (0
+  NaN across 140 refined rows in the committed `trial_grid` run). Root cause not isolated; possibly
+  related to the `strip` shape being built with `etch_depth == height` (fully etched). Until fixed,
+  **all `loaded`-family loss numbers (scattering + the bulk-absorption item above) are effectively
+  zero** -- `peak_efficiency`/`L_opt` from any `loaded` run so far are not trustworthy; only the
+  lossless NCE is valid.
 - [ ] d15 values (assume Kleinman for now); d-tensor dispersion to 450 → 225 nm.
-- [ ] Decide default N_pump, N_SH, λ_SH step, and SH n_eff window margins after a first trial.
+- [x] Default N_pump, N_SH, λ_SH step, SH n_eff window margins -- set in `survey_config.py`
+  (`num_pump_tm=3`, `num_pump_te=2`, `num_sh_modes=30`, `lambda_step=1.0 nm`,
+  `sh_window_margin=0.10`) and validated by the `trial_grid`/`wide_window` runs below.
 
 ## References
 
@@ -254,3 +285,36 @@ Physics/validation:
   guided match, as expected from the core-cancellation argument above.
 - Mode labels: node counting now uses the power-weighted most common count per row/column
   and marks hybrids with '?'; `relabel_run.py` re-labels refined rows from their exports.
+
+### Loaded-family smoke test (2026-10-04)
+
+Ran the PLAN's open item 1 (geometry parameterization check) end-to-end for `geometry.Loaded`
+(strip_eq AlN film + TiO2 strip, John Carlson deck slides 10-15). Geometry/mask conventions
+verified correct (partial-etch rib width and outside-slab thickness, `strip_offset` sign -- strip
+at +300 nm gave a mode x-centroid at +299.9 nm -- all matched EMode's own index plot pixel-for-pixel,
+`runs/geometry_check/`). The pipeline itself runs cleanly: `loaded_smoke` found 5 pump modes, 317
+guided crossings, 8 refined (best TM00->TM165? at 225.4 nm, NCE 33.4 %/W/cm^2). No bugs in
+`geometry.Loaded`'s masks/build.
+
+But two independent loss gaps mean none of that run's loss numbers (scattering or absorption) can
+be trusted yet -- see the three new "Open items" entries above for detail:
+
+1. EMode's built-in `TiO2` has k=0 everywhere (checked via `em.refractive_index`) -- fixed with a
+   damped-Sellmeier fit to Siefke et al. 2016 ALD TiO2 data (`materials/fit_tio2_sellmeier.py`,
+   `materials/TiO2_Siefke2016_sellmeier_fit.json`; SH-band n,k good to 1-3%, pump-band k has a
+   small ~1-3e4 dB/cm residual-tail artifact, documented in the JSON). But EMode's FDM solver
+   cannot actually consume a complex (lossy) `refractive_index_equation` -- it crashes
+   unconditionally (`Cannot cast ufunc 'add' output from dtype('complex128') to dtype('float64')`),
+   confirmed independent of boundary condition, masking, or which shape. `survey_config_loaded.py`
+   currently uses the fit's real-only equation (correct n, no loss) so the smoke test can run.
+2. `native_scattering()` (roughness loss) returns NaN for every `loaded`-family shape, silently
+   treated as zero loss downstream -- see the matching "Open items" entry.
+
+The one bulk-loss mechanism confirmed to actually work in this EMode build is the deprecated
+`shape(loss_dB_per_m=...)` parameter (verified: a 300 nm-wide lossy strip with bulk loss=1e6 dB/m
+reports a correctly confinement-weighted ~9.4e5 dB/m modal loss via `em.report()`; a 0-loss
+control reports exactly 0). `add_material(loss=...)`, the documented non-deprecated replacement,
+was verified to NOT reach the modal loss report at all (`report()` showed 0.000 dB/m regardless of
+the material's `loss` value). Wiring real SH-band TiO2 absorption into the survey therefore means
+computing bulk alpha(lambda) in Python from the n,k fit and re-setting it via the deprecated
+shape-level call at every solve wavelength -- not yet implemented.

@@ -58,6 +58,16 @@ def test_loss_limited_length():
     print(f"loss-limited OK: 5 dB/cm pump, 50 dB/cm SH -> L_opt={L * 1e3:.2f} mm, L_eff={leff * 1e3:.2f} mm")
 
 
+def test_bulk_loss():
+    # closed form: alpha_power = 4 pi k / lambda [1/m], dB/m = alpha_power * 10/ln(10)
+    n, k, lam_nm = 2.1, 1.4, 225.0
+    expected = 4 * np.pi * k / (lam_nm * 1e-9) * 10 / np.log(10)
+    got = sp.bulk_loss_dB_per_m(n + 1j * k, lam_nm)
+    assert abs(got / expected - 1) < 1e-9, (got, expected)
+    assert sp.bulk_loss_dB_per_m(n - 1j * k, lam_nm) == 0.0  # never negative/gain
+    print(f"bulk loss OK: n+ik=({n}+{k}j) @ {lam_nm} nm -> {got:.3e} dB/m (TiO2-at-SH scale)")
+
+
 def test_overlap_terms():
     rng = np.random.default_rng(0)
     shp = (40, 50)
@@ -76,5 +86,6 @@ if __name__ == '__main__':
     test_plane_wave_limit()
     test_symmetry_forbidden()
     test_loss_limited_length()
+    test_bulk_loss()
     test_overlap_terms()
     print('all passed')

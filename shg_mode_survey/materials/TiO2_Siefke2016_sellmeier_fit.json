@@ -1,0 +1,75 @@
+{
+ "source": "T. Siefke et al., Adv. Opt. Mater. 4, 1780-1786 (2016); ALD TiO2, 350 nm film; table via refractiveindex.info (CC0), TiO2_Siefke2016_nk.csv",
+ "model": "eps = eps_inf + sum_j B_j lam^2/(lam^2 - lam_j^2 - 1j*g_j*(lam_j/lam)**P*lam); n+ik = sqrt(eps); lam in um",
+ "fit_range_nm": [
+  150.0,
+  600.0
+ ],
+ "k_weight": 3.0,
+ "note": "EMode built-in TiO2 has k=0 everywhere (checked via em.refractive_index): a visible-range-only fit that silently drops the strong UV absorption at the SH band. This fit replaces it for the loaded-family strip_eq. SH-band (215-235 nm) n,k are well constrained and agree with the raw Siefke table to ~1-3%. Pump-band (430-470 nm) k has a residual of ~0.01-0.02 (alpha ~1.5-3e4 dB/cm) vs the real data's near-zero (~1e-4) -- a fit artifact of the shared power-law damping, not a real absorption feature; treat pump-mode loss from this strip_eq as an upper bound and cross-check against measured waveguide loss before trusting it quantitatively.",
+ "params": {
+  "eps_inf": 0.5000000000000001,
+  "damping_power_P": 3.835740737776754,
+  "oscillators": [
+   {
+    "B": 0.747357810952266,
+    "lam0_um": 0.2898406092443325,
+    "g_um": 0.03988229945130423
+   },
+   {
+    "B": 1.0333497570914447,
+    "lam0_um": 0.25737392763368333,
+    "g_um": 0.04761891390600902
+   },
+   {
+    "B": 1.023248575669856,
+    "lam0_um": 0.21188573550993758,
+    "g_um": 0.07200672322104401
+   },
+   {
+    "B": 1.7004335978946683,
+    "lam0_um": 0.14999999999999997,
+    "g_um": 0.10665443058485642
+   }
+  ]
+ },
+ "rms_n": 0.059642697009941445,
+ "rms_k": 0.04897704178256403,
+ "max_abs_err_n": 0.1860124592467114,
+ "max_abs_err_k": 0.12714592852805684,
+ "n_err_pump_band_max": 0.008974995446897616,
+ "model_values": {
+  "215": {
+   "n": 2.0163,
+   "k": 1.3862,
+   "alpha_dB_per_cm": 3518730.9
+  },
+  "225": {
+   "n": 2.1735,
+   "k": 1.4004,
+   "alpha_dB_per_cm": 3396739.2
+  },
+  "235": {
+   "n": 2.2521,
+   "k": 1.3804,
+   "alpha_dB_per_cm": 3205789.2
+  },
+  "430": {
+   "n": 2.6009,
+   "k": 0.023,
+   "alpha_dB_per_cm": 29130.8
+  },
+  "450": {
+   "n": 2.5572,
+   "k": 0.0169,
+   "alpha_dB_per_cm": 20548.4
+  },
+  "470": {
+   "n": 2.5216,
+   "k": 0.0128,
+   "alpha_dB_per_cm": 14886.5
+  }
+ },
+ "emode_equation_complex": "(0.5+0.747358*x**2/(x**2-0.0840076-1j*0.0398823*(0.289841/x)**3.83574*x)+1.03335*x**2/(x**2-0.0662413-1j*0.0476189*(0.257374/x)**3.83574*x)+1.02325*x**2/(x**2-0.0448956-1j*0.0720067*(0.211886/x)**3.83574*x)+1.70043*x**2/(x**2-0.0225-1j*0.106654*(0.15/x)**3.83574*x))**0.5",
+ "emode_equation_real": "(0.5+0.747358*x**2/(x**2-0.0840076)+1.03335*x**2/(x**2-0.0662413)+1.02325*x**2/(x**2-0.0448956)+1.70043*x**2/(x**2-0.0225))**0.5"
+}

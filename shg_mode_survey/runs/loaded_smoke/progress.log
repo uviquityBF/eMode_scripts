@@ -1,0 +1,29 @@
+[21:38:38] run 'loaded_smoke' (survey_config_loaded_smoke): 1 geometries, 0 already done, 1 to do
+[21:38:38] [1/1] loaded t=354 e=0 custom h_s=70 w_s=500  (bf77f55b6975)
+[21:39:00]   attempt 1 failed: EModeError("Cannot cast ufunc 'add' output from dtype('complex128') to dtype('float64') with casting rule 'same_kind'")
+[21:39:21]   attempt 2 failed: EModeError("Cannot cast ufunc 'add' output from dtype('complex128') to dtype('float64') with casting rule 'same_kind'")
+[21:39:21]   FAILED: EModeError("Cannot cast ufunc 'add' output from dtype('complex128') to dtype('float64') with casting rule 'same_kind'")
+Traceback (most recent call last):
+  File "C:\Users\Uviquity\Documents\GitHub\eMode_scripts\shg_mode_survey\survey.py", line 566, in main
+    pumps, rows = run_geometry(g, cfg, run_dir, fp, pumps_only)
+                  ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Uviquity\Documents\GitHub\eMode_scripts\shg_mode_survey\survey.py", line 492, in run_geometry
+    em.FDM()
+    ~~~~~~^^
+  File "C:\Users\Uviquity\Documents\GitHub\eMode_scripts\.venv\Lib\site-packages\emodeconnection\emodeconnection.py", line 292, in wrapper
+    return self.call("EM_" + name, **kwargs)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Uviquity\Documents\GitHub\eMode_scripts\.venv\Lib\site-packages\emodeconnection\emodeconnection.py", line 251, in call
+    rv = self.client.recv()
+  File "C:\Users\Uviquity\Documents\GitHub\eMode_scripts\.venv\Lib\site-packages\emodeconnection\emodeclient.py", line 159, in recv
+    raise o
+emodeconnection.types.EModeError: Cannot cast ufunc 'add' output from dtype('complex128') to dtype('float64') with casting rule 'same_kind'
+
+[21:39:21]   elapsed 0.7 min, est. remaining 0.0 min
+[21:48:18] run 'loaded_smoke' (survey_config_loaded_smoke): 1 geometries, 0 already done, 1 to do
+[21:48:18] [1/1] loaded t=354 e=0 custom h_s=70 w_s=500  (77784674c2a3)
+[21:50:02]   pumps (84s): TE00[S] 2.1521, TM00[A] 2.1492, TM10[S] 2.1104, TM20[A] 2.1038, TE10[A] 2.0606
+[21:53:26]   SH scan (203s): 152 SH tracks, 317 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[21:58:19]   refine (294s): 8 refined, 309 screened-only
+[21:58:20]   done in 602s; best: TM00->TM165? @ 225.38 nm, NCE 33.4 %/W/cm^2 (refined)
+[21:58:20]   elapsed 10.0 min, est. remaining 0.0 min

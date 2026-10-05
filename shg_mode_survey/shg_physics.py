@@ -162,6 +162,15 @@ def db_per_m_to_per_m(db):
     return db * np.log(10) / 10.0
 
 
+def bulk_loss_dB_per_m(n_eff, wavelength_nm):
+    """Modal bulk-material absorption [dB/m] from the imaginary part of the complex effective
+    index EMode's FDM solver already returns whenever a material has a lossy (n + ik, k > 0)
+    refractive_index_equation: power decays as exp(-2 k0 Im(n_eff) z), k0 = 2 pi / lambda."""
+    k0 = 2 * np.pi / (wavelength_nm * 1e-9)
+    alpha_per_m = 2 * k0 * max(float(np.imag(n_eff)), 0.0)
+    return alpha_per_m * 10.0 / np.log(10.0)
+
+
 def loss_limited_length(eta, alpha_p_db_m, alpha_s_db_m, l_max_m=0.2):
     """With power-loss coefficients alpha_p (pump) and alpha_s (SH):
         P_SH(L) = eta P_p^2 L_eff^2,  L_eff = e^{-a_s L/2} (e^{D L} - 1)/D,  D = a_s/2 - a_p.
