@@ -132,7 +132,8 @@ def main(run_name):
            'overlap_shape': '{:.4f}', 'A_shg_um2': '{:.3g}', 'A_eff_pump_um2': '{:.3f}',
            'A_eff_sh_um2': '{:.3f}', 'L_opt_mm': '{:.2f}', 'peak_efficiency_pct_per_W': '{:.3g}',
            'sh_te_fraction': '{:.2f}', 'pump_scattering_dB_per_m': '{:.0f}',
-           'sh_scattering_dB_per_m': '{:.0f}'}
+           'sh_scattering_dB_per_m': '{:.0f}', 'pump_absorption_dB_per_m': '{:.3g}',
+           'sh_absorption_dB_per_m': '{:.3g}'}
     ridge_only = bool((g['family'] == 'ridge').all())  # h/w columns + vs-width plots
     cols = (['h', 'w'] if ridge_only else ['geom']) + ['pump_label', 'sh_label', 'sh_te_fraction', 'wavelength_sh', 'eta_pct_per_W_cm2',
             'overlap_shape', 'A_shg_um2', 'A_eff_pump_um2', 'A_eff_sh_um2', 'status']
@@ -150,14 +151,17 @@ def main(run_name):
                 f"({(g['status'] == 'ok').sum()} ok, {(g['status'] != 'ok').sum()} failed), "
                 f"{len(c)} guided phase-match crossings ({len(ref)} refined).\n\n")
         f.write("NCE = normalized conversion efficiency [%/W/cm^2], lossless; peak = "
-                "loss-limited eta*L_eff^2 [%/W] at L_opt (pump: native scattering + interface "
-                "absorption; SH: native scattering only, no UV absorption data yet). "
+                "loss-limited eta*L_eff^2 [%/W] at L_opt (scattering: EMode-native roughness; "
+                "absorption: interface mechanisms + confinement-weighted bulk material loss, "
+                "e.g. a lossy strip -- see geometry.py's lossy_mask/lossy_bulk_loss_dB_per_m and "
+                "survey.bulk_absorption_loss; 0 wherever a geometry has no lossy region defined). "
                 "overlap_shape is 0..1; A_shg is the plane-wave-equivalent interaction area for "
                 "AlN d33.\n\n")
         f.write("## Top 25 by NCE\n\n" + md_table(top_nce, cols, fmt) + "\n\n")
         f.write("## Top 25 by loss-limited peak efficiency (refined)\n\n" +
                 md_table(top_peak, cols[:cols.index('wavelength_sh') + 1] +
                          ['eta_pct_per_W_cm2', 'pump_scattering_dB_per_m', 'sh_scattering_dB_per_m',
+                          'pump_absorption_dB_per_m', 'sh_absorption_dB_per_m',
                           'L_opt_mm', 'peak_efficiency_pct_per_W'], fmt) + "\n\n")
         f.write("## Best TM->TM pairs (best instance of each pump->SH pair)\n\n" +
                 md_table(pair_best, cols, fmt) + "\n\n")

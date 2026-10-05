@@ -1,10 +1,13 @@
 # SHG Mode Survey — Plan
 
-Status (2026-10-04): Step 1 and Step 1b implemented for the `ridge` family and trial-run; Step 2's
+Status (2026-10-05): Step 1 and Step 1b implemented for the `ridge` family and trial-run; Step 2's
 `loaded` family implemented, geometry-verified, and both its scattering loss (an EMode-version
 bug on this machine, fixed by updating to v1.0.4) and bulk SH-absorption loss (TiO2 etc., wired as
-a post-solve perturbation after EMode-side approaches proved to be dead ends) are now trustworthy
-(see "Implementation status & findings" at the end, 2026-10-04 entries). Builds on
+a post-solve perturbation after EMode-side approaches proved to be dead ends) are now trustworthy.
+First full `loaded` sweep (`loaded_sweep1`, TiO2 strip) ran overnight: much higher lossless NCE
+than `ridge`, but loss-limited peak efficiency collapses ~40,000x below `ridge`'s best once real
+TiO2 absorption is included -- TiO2 looks like the wrong strip material, not just a materials-data
+gap (see "Implementation status & findings" at the end, 2026-10-04/05 entries). Builds on
 `loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
 
 ## Goal
@@ -245,7 +248,17 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
 - [ ] d15 values (assume Kleinman for now); d-tensor dispersion to 450 → 225 nm.
 - [x] Default N_pump, N_SH, λ_SH step, SH n_eff window margins -- set in `survey_config.py`
   (`num_pump_tm=3`, `num_pump_te=2`, `num_sh_modes=30`, `lambda_step=1.0 nm`,
-  `sh_window_margin=0.10`) and validated by the `trial_grid`/`wide_window` runs below.
+  `sh_window_margin=0.10`) and validated by the `trial_grid`/`wide_window` runs below. **Except**:
+  `num_sh_modes=30` is too narrow for the `loaded` family specifically -- every geometry in
+  `loaded_sweep1` hit the "SH n_eff window too narrow" warning (21-63 group-steps affected, worst
+  for h_s=150), so that family's results may be missing some crossings at the margins (see
+  `loaded_sweep1` findings below).
+- [ ] **TiO2 is likely the wrong `loaded`-strip material** -- `loaded_sweep1` (first full sweep
+  with real TiO2 loss, see findings below) shows it absorbs too strongly at both pump and SH bands
+  to be competitive with plain `ridge`, despite much higher lossless NCE. Next experiment: swap the
+  strip for a nonlinear, lower-loss material (ScAlN -- Bäumler fit already done, needs
+  `strip_chi2`/`d_tensors_pm` wiring and a `strip_eq`/`strip_loss_eq` built the same way as TiO2's)
+  instead of (or combined with) iterating on TiO2 geometry parameters.
 
 ## References
 
@@ -412,3 +425,42 @@ true optimum is shorter still. A `loaded` design wanting usable SHG efficiency l
 *phase-matched* SH mode's field kept largely out of the strip (using the strip mainly to perturb
 dispersion for phase matching, not as part of the SH mode's core), which is a real geometry-design
 constraint for Step 2, not just a materials-data gap.
+
+### First full `loaded` sweep with real TiO2 loss (`loaded_sweep1`, 2026-10-04/05 overnight)
+
+Ran the 8-geometry sweep in `survey_config_loaded.py` (unetched AlN film, TiO2 strip; t_film in
+{354, 600}, h_s in {70, 150}, w_s in {500, 1000} nm) with the bulk-loss wiring above. 0 failures,
+80 min total, 2399 guided crossings (64 refined, 8 per geometry). `summarize_run.py` updated to
+surface `pump_absorption_dB_per_m` / `sh_absorption_dB_per_m` in the peak-efficiency table (it was
+still saying "no UV absorption data yet" and hiding exactly the numbers that now explain the
+results) and to describe scattering/absorption generically instead of hardcoding "native
+scattering + interface absorption" for pump / "native scattering only" for SH.
+
+- **Lossless NCE is dramatically higher than the ridge family**: 0.0005-293 %/W/cm^2 across all
+  refined crossings, vs. ridge's best of ~15 %/W/cm^2 (`trial_grid`). The h_s=150 nm geometries in
+  particular reach NCE > 100 %/W/cm^2 repeatedly (TM00->TM123? at h_s=150/w_s=500 hits 293
+  %/W/cm^2) -- the strip genuinely does pull in strongly-overlapping, low-order-ish SH modes the
+  way the design intends.
+- **But loss-limited peak efficiency collapses once real TiO2 absorption is included**: 2.9e-11 to
+  2.8e-6 %/W across all 64 refined crossings -- the best case in the whole sweep (TM10->TM26 at
+  234.9 nm, t=600/h_s=150/w_s=500, NCE 43.6 %/W/cm^2) is ~40,000x worse than ridge's best committed
+  peak efficiency (0.11 %/W, `trial_grid` TM00->TM04 h=350/w=500). `L_opt` pins at the 1 um grid
+  floor for nearly every top-NCE row. Root cause confirmed in the data: it's not just SH-band loss
+  (expected) -- **pump-band TiO2 absorption is also substantial** (confinement-weighted
+  pump_absorption_dB_per_m commonly 1e5-1.7e6 dB/m across the sweep's best-NCE rows), because the
+  fitted pump-band bulk value itself is ~1.5-2.9e6 dB/m (not negligible merely because k is "small"
+  relative to the SH band -- 0.01-0.03 is still ~100x the existing AlN growth-interface absorption
+  mechanisms already in `pump_absorption_mechanisms`), and a loaded design's pump mode has real
+  confinement in the strip by construction.
+- **Conclusion: TiO2 is likely the wrong strip material for this design**, not merely "needs real
+  loss data" -- with real data in hand, it absorbs too strongly at BOTH bands to be competitive
+  with the plain `ridge` family, let alone better. The natural next experiment is swapping the
+  strip for a nonlinear, lower-loss material that can also contribute d33/d31 (ScAlN's Bäumler fit
+  is already done, `materials/fit_baumler_sellmeier.py` -- just needs `strip_chi2` wired to a
+  ScAlN entry in `d_tensors_pm` and a `strip_eq`/`strip_loss_eq` built the same way as TiO2's); see
+  PLAN.md's chi2 tensor section on TE-pump -> TM-SH via d31 becoming competitive in ScAlN.
+- **Caveat on completeness**: every one of the 8 geometries hit the "SH n_eff window too narrow"
+  warning (21-63 group-steps affected, worst for h_s=150 cases) -- `num_sh_modes=30` may be
+  undercounting the true crossing set for this family, especially the higher-NCE h_s=150
+  geometries. Re-running with a larger `num_sh_modes` would be worth it before treating "293
+  %/W/cm^2 is the best NCE in this family" as final.

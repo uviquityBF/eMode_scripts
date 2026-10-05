@@ -2,7 +2,7 @@
 
 1 geometries (1 ok, 0 failed), 317 guided phase-match crossings (8 refined).
 
-NCE = normalized conversion efficiency [%/W/cm^2], lossless; peak = loss-limited eta*L_eff^2 [%/W] at L_opt (pump: native scattering + interface absorption; SH: native scattering only, no UV absorption data yet). overlap_shape is 0..1; A_shg is the plane-wave-equivalent interaction area for AlN d33.
+NCE = normalized conversion efficiency [%/W/cm^2], lossless; peak = loss-limited eta*L_eff^2 [%/W] at L_opt (scattering: EMode-native roughness; absorption: interface mechanisms + confinement-weighted bulk material loss, e.g. a lossy strip -- see geometry.py's lossy_mask/lossy_bulk_loss_dB_per_m and survey.bulk_absorption_loss; 0 wherever a geometry has no lossy region defined). overlap_shape is 0..1; A_shg is the plane-wave-equivalent interaction area for AlN d33.
 
 ## Top 25 by NCE
 
@@ -36,16 +36,16 @@ NCE = normalized conversion efficiency [%/W/cm^2], lossless; peak = loss-limited
 
 ## Top 25 by loss-limited peak efficiency (refined)
 
-| geom | pump_label | sh_label | sh_te_fraction | wavelength_sh | eta_pct_per_W_cm2 | pump_scattering_dB_per_m | sh_scattering_dB_per_m | L_opt_mm | peak_efficiency_pct_per_W |
-|---|---|---|---|---|---|---|---|---|---|
-| loaded t=354 e=0 custom h_s=70 w_s=500 | TM20 | TM64? | 0.01 | 227.26 | 1.09 | 3 | 52 | 0.02 | 3.27e-07 |
-| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TM124? | 0.02 | 221.13 | 15.5 | 162 | 508 | 0.00 | 7.44e-08 |
-| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TM165? | 0.02 | 225.38 | 33.4 | 141 | 489 | 0.00 | 3.05e-08 |
-| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TM321? | 0.04 | 221.39 | 1.27 | 160 | 1229 | 0.01 | 1.07e-08 |
-| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TE74 | 0.62 | 217.50 | 0.106 | 184 | 16765 | 0.00 | 2.83e-10 |
-| loaded t=354 e=0 custom h_s=70 w_s=500 | TM10 | TM144? | 0.21 | 221.55 | 0.043 | 89 | 850 | 0.01 | 2.08e-10 |
-| loaded t=354 e=0 custom h_s=70 w_s=500 | TM10 | TM147? | 0.17 | 218.45 | 0.161 | 108 | 6944 | 0.00 | 1.93e-10 |
-| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TM282? | 0.07 | 220.56 | 0.0151 | 165 | 1051 | 0.00 | 2.93e-11 |
+| geom | pump_label | sh_label | sh_te_fraction | wavelength_sh | eta_pct_per_W_cm2 | pump_scattering_dB_per_m | sh_scattering_dB_per_m | pump_absorption_dB_per_m | sh_absorption_dB_per_m | L_opt_mm | peak_efficiency_pct_per_W |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| loaded t=354 e=0 custom h_s=70 w_s=500 | TM20 | TM64? | 0.01 | 227.26 | 1.09 | 3 | 52 | 1.47e+04 | 1.46e+06 | 0.02 | 3.27e-07 |
+| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TM124? | 0.02 | 221.13 | 15.5 | 162 | 508 | 3.44e+05 | 5.98e+06 | 0.00 | 7.44e-08 |
+| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TM165? | 0.02 | 225.38 | 33.4 | 141 | 489 | 2.65e+05 | 2.62e+07 | 0.00 | 3.05e-08 |
+| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TM321? | 0.04 | 221.39 | 1.27 | 160 | 1229 | 3.39e+05 | 4.65e+06 | 0.01 | 1.07e-08 |
+| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TE74 | 0.62 | 217.50 | 0.106 | 184 | 16765 | 4.37e+05 | 1.17e+07 | 0.00 | 2.83e-10 |
+| loaded t=354 e=0 custom h_s=70 w_s=500 | TM10 | TM144? | 0.21 | 221.55 | 0.043 | 89 | 850 | 4.66e+04 | 1.12e+07 | 0.01 | 2.08e-10 |
+| loaded t=354 e=0 custom h_s=70 w_s=500 | TM10 | TM147? | 0.17 | 218.45 | 0.161 | 108 | 6944 | 6.28e+04 | 2.3e+07 | 0.00 | 1.93e-10 |
+| loaded t=354 e=0 custom h_s=70 w_s=500 | TM00 | TM282? | 0.07 | 220.56 | 0.0151 | 165 | 1051 | 3.57e+05 | 1.56e+07 | 0.00 | 2.93e-11 |
 
 ## Best TM->TM pairs (best instance of each pump->SH pair)
 
