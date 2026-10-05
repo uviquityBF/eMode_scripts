@@ -91,14 +91,28 @@ def fit_one(lam_um, n, k):
     return best.x
 
 
+def _fixed(v, sig=6):
+    """Format a float to `sig` significant figures WITHOUT scientific notation -- EMode's
+    refractive_index_equation parser rejects 'e' notation outright (ArgumentError: 'invalid
+    syntax, disallowed character'), which a near-zero fitted oscillator coefficient can trigger
+    via Python's default %g formatting (caught 2026-10-05 fitting SiNx: a dead 4th oscillator
+    parked at B ~ 9.8e-08 -- this file's own coefficients haven't hit it yet, fixed pre-emptively,
+    relevant whenever ScAlN actually gets wired into a geometry/survey_config)."""
+    if v == 0:
+        return '0'
+    import math
+    decimals = max(0, sig - 1 - int(math.floor(math.log10(abs(v)))))
+    return f"{v:.{decimals}f}"
+
+
 def emode_equation(p, complex_=True):
     """refractive_index_equation string in um (x = wavelength in um)."""
-    terms = [f"{p[0]:.6g}"]
+    terms = [_fixed(p[0])]
     P = p[1]
     for j in range(N_OSC):
         B, lam0, g = p[2 + 3 * j:5 + 3 * j]
-        damp = f"-1j*{g:.6g}*({lam0:.6g}/x)**{P:.6g}*x" if (complex_ and g > 0) else ""
-        terms.append(f"{B:.6g}*x**2/(x**2-{lam0 ** 2:.6g}{damp})")
+        damp = f"-1j*{_fixed(g)}*({_fixed(lam0)}/x)**{_fixed(P)}*x" if (complex_ and g > 0) else ""
+        terms.append(f"{_fixed(B)}*x**2/(x**2-{_fixed(lam0 ** 2)}{damp})")
     return f"({'+'.join(terms)})**0.5"
 
 

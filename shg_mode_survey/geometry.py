@@ -381,27 +381,30 @@ class Hybrid:
     `ridge` -- this family exists to re-attempt that in the project's actual UV band, not to
     reproduce the paper's telecom demo).
 
-    UNVERIFIED (check with em.plot(component='Index') once): the paper describes fabrication
-    narratively (conformal SiNx deposition, RIE side-core etch, CMP planarization), not as a
-    simple target cross-section. This models the simplest mode-solver-natural reading of it: an
-    AlN trapezoid sitting on the substrate, embedded in a SiNx rectangle of width `sin_width` x
-    height `sin_height` that also sits on the substrate (so SiNx occupies every point inside that
-    bounding box NOT already AlN -- beside AND above the core), then SiO2 outside/above. Confirm
-    this matches the paper's intent (and adjust `_masks`/`build` if not) before trusting results.
+    The paper describes fabrication narratively (conformal SiNx deposition, RIE side-core etch,
+    CMP planarization), not as a simple target cross-section. This models the simplest
+    mode-solver-natural reading of it: an AlN trapezoid sitting on the substrate, embedded in a
+    SiNx rectangle of width `sin_width` x height `sin_height` that also sits on the substrate (so
+    SiNx occupies every point inside that bounding box NOT already AlN -- beside AND above the
+    core), then SiO2 outside/above. Confirmed 2026-10-05 via em.plot(component='Index') on the
+    smoke geometry: EMode's render matches `_masks` exactly (core trapezoid embedded in the shell
+    rectangle, nothing defaulting to full window width -- see `build`'s etch_depth comment for the
+    convention that makes this work).
 
     Params (nm / deg), all but the materials/chi2 keys required (no natural default for a new
     engineered structure -- the paper's own telecom-scale values are a starting point, not
     necessarily right for this project's UV band): h_core, w_core (AlN trapezoid bottom width),
     sidewall_angle=16.5 (~paper's implied angle from its reported top/bottom/height), sin_width,
     sin_height (SiNx shell outer bounding box -- must be >= h_core/w_core respectively).
-    shell_material: an EMode database name, or set shell_eq (REAL-only -- see `Loaded`'s
+    shell_material: an EMode database name (default 'SiN' -- confirmed present in EMode's
+    database; 'SiNx'/'Si3N4' are not), or set shell_eq (REAL-only -- see `Loaded`'s
     strip_eq/strip_loss_eq docstring for why) + shell_loss_eq (complex, Python-only) for a custom
     lossy material the same way. shell_chi2: key into d_tensors_pm if the shell is nonlinear,
     else None (SiNx is amorphous/centrosymmetric -- chi(2) = 0 is the physically-expected default,
     matching the paper, which uses only AlN's d33).
     """
     family = 'hybrid'
-    defaults = {'sidewall_angle': 16.5, 'shell_material': 'SiNx', 'shell_eq': None,
+    defaults = {'sidewall_angle': 16.5, 'shell_material': 'SiN', 'shell_eq': None,
                 'shell_loss_eq': None, 'shell_chi2': None,
                 'substrate_height': 1000.0, 'topclad_height': 800.0,
                 'substrate_material': 'Al2O3', 'topclad_material': 'SiO2',
@@ -443,13 +446,16 @@ class Hybrid:
         em.shape(name='Substrate', material=p['substrate_material'], height=p['substrate_height'])
         rough = ({'roughness_rms': list(roughness_rms), 'correlation_length': list(correlation_length)}
                  if any(roughness_rms) else {})
-        # shell: a rectangular block (mask = width, no etch/taper -> vertical walls)
+        # shell: a rectangular block. etch_depth == height (same convention Loaded's 'strip'
+        # uses) is required for mask to actually restrict the width at all -- without it, mask
+        # alone is a no-op and the shape fills the full window (found 2026-10-05 via
+        # em.plot(component='Index') rendering a full-width flat layer instead of a block).
         em.shape(name='shell', material=self._shell_material_name(), height=p['sin_height'],
-                 mask=p['sin_width'], **rough)
+                 mask=p['sin_width'], etch_depth=p['sin_height'], sidewall_angle=0.0, **rough)
         # core: drawn after the shell, so it takes priority in their overlapping footprint
         # (same "later shape wins" convention already relied on by Loaded's film-then-strip)
         em.shape(name='core', material='custom_AlN', height=p['h_core'], mask=p['w_core'],
-                 sidewall_angle=p['sidewall_angle'], **rough)
+                 etch_depth=p['h_core'], sidewall_angle=p['sidewall_angle'], **rough)
         em.shape(name='TopClad', material=p['topclad_material'], height=p['topclad_height'],
                  shape_type='conformal')
 

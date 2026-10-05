@@ -15,10 +15,12 @@ for this before deciding what to refine, so `refine_top_n`'s budget goes to real
 Re-ran the full sweep with the fix active: **98.2% of all screened crossings across the family
 turn out window-limited**, not just the smoke-test geometry's ~99% -- but the corrected headline
 NCE is unchanged at 159 %/W/cm^2 (TM00->TM05?, h_s=150/w_s=1000), confirming the fix improves
-efficiency/coverage without changing the physics conclusion. `ridge`'s older committed results
-predate this check entirely and haven't been verified against it yet (see "Implementation status &
-findings" at the end, 2026-10-04/05 entries, and "Open items"). Builds on `loss_vs_dimensions/`
-and borrows from `phase_matching_pipeline/`.
+efficiency/coverage without changing the physics conclusion. `ridge`'s older committed results have
+since been re-verified clean against this check (0 window-limited across `trial_grid` +
+`wide_window`). A third family, `hybrid` (AlN core embedded in a SiNx shell, adapting Honda et al.
+2025's TM00->TM20 mechanism to this project's UV band), is now implemented and geometry-verified
+but not yet surveyed -- see "Implementation status & findings" at the end, 2026-10-05 entries, and
+"Open items". Builds on `loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
 
 ## Goal
 
@@ -670,3 +672,33 @@ which is where every `loaded`-family window artifact was found living.
 `wide_window` (2 geometries, wider 215-275 nm SH scan) re-run the same way: also fully clean, 0 of
 123 newly-verified crossings window-limited. Both `ridge`-family runs are now confirmed; "ridge
 doesn't produce this artifact" isn't a one-run coincidence.
+
+### New `hybrid` (AlN/SiNx) geometry family added, `etch_depth` bug found and fixed (2026-10-05, same day)
+
+Added a third geometry family, `geometry.Hybrid`, adapting Honda et al. 2025 (Appl. Phys. Express
+18, 122001 -- AlN core embedded in a SiNx "shell" sized so SiNx occupies the region where TM20's
+transverse field reverses sign, enabling TM00->TM20 phase matching that a plain ridge can't reach)
+directly to this project's UV target (215-235 nm SH, 430-470 nm pump) rather than replicating the
+paper's telecom demo (1550/775 nm) -- user's explicit choice between the two options. Needed a new
+SiNx n+ik fit (`materials/fit_sinx_sellmeier.py`, Beliaev et al. 2022 PECVD data via
+refractiveindex.info, rms n=0.0009/k=0.0012; SiNx is genuinely ~lossless in the pump band, k~0 by
+450 nm in the raw data, not just a fit artifact). `'SiN'` is EMode's database name (`'SiNx'`,
+`'Si3N4'` don't exist there).
+
+Live `em.plot(component='Index')` check on the smoke geometry caught a real bug before any survey
+ran: both the shell and core `em.shape()` calls were missing `etch_depth`, so `mask` alone did
+nothing -- EMode rendered a flat full-window-width layer stack instead of the intended embedded
+trapezoid. Root cause and fix: `etch_depth` must equal the shape's own height (same convention
+`Loaded`'s `'strip'` already used) for `mask` to actually restrict a shape to finite width; without
+it, a shape silently fills the whole window regardless of `mask`. Fixed in `Hybrid.build()`
+(`geometry.py`); re-ran the check after the fix and confirmed the render now matches `_masks()`
+exactly -- AlN trapezoid correctly embedded in the SiNx rectangle, substrate/topclad otherwise
+clean. No-EMode test suite (`test_geometry.py`) re-run clean, all passing (these tests only cover
+the pure-Python mask logic, which was already correct -- the bug was specifically in the EMode-side
+`build()`, not something they'd have caught).
+
+Not yet done: the `hybrid_smoke` survey itself (Step 1 pipeline on this family, looking for a real
+TM00->TM20-or-similar UV phase match) hasn't been run yet, and the family has an unetched-ish
+shallow SiNx shell region similar in spirit to `loaded`'s unetched AlN film -- worth checking its
+results against the window/box-mode artifact explicitly rather than assuming "ridge-like" clean,
+once real results exist.
