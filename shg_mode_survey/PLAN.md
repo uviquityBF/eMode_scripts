@@ -1,10 +1,10 @@
 # SHG Mode Survey — Plan
 
 Status (2026-10-04): Step 1 and Step 1b implemented for the `ridge` family and trial-run; Step 2's
-`loaded` family implemented, geometry-verified, and its scattering loss is now trustworthy
-(an EMode-version bug on this machine, fixed by updating to v1.0.4). Bulk SH-absorption loss
-(e.g. TiO2) is still not wired up -- a separate, still-open EMode-API limitation (see
-"Implementation status & findings" at the end, 2026-10-04 entries). Builds on
+`loaded` family implemented, geometry-verified, and both its scattering loss (an EMode-version
+bug on this machine, fixed by updating to v1.0.4) and bulk SH-absorption loss (TiO2 etc., wired as
+a post-solve perturbation after EMode-side approaches proved to be dead ends) are now trustworthy
+(see "Implementation status & findings" at the end, 2026-10-04 entries). Builds on
 `loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
 
 ## Goal
@@ -191,9 +191,9 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
 - [ ] k(λ) for AlN near 215 nm, AlGaN. ScAlN done (Bäumler 2019 digitized + damped-Sellmeier fit,
   `materials/fit_baumler_sellmeier.py`) but **not yet wired into any geometry/survey_config** --
   `d_tensors_pm`/material equations still only define AlN. TiO2 done the same way
-  (`materials/fit_tio2_sellmeier.py`, Siefke et al. 2016) and **is** wired into
-  `survey_config_loaded.py`, but see the bulk-loss blocker below -- only the real (n) part is
-  usable right now, not the loss.
+  (`materials/fit_tio2_sellmeier.py`, Siefke et al. 2016) and **is** fully wired into
+  `survey_config_loaded.py` (both n via `strip_eq` and loss via `strip_loss_eq`, see the
+  bulk-absorption item below for how the loss actually reaches results).
 - [x] **`native_scattering()` NaN for every `loaded`-family mode was an EMode version bug, not a
   code/geometry bug.** This desktop's EMode.exe was v1.0.0.0 (`get_shape()` failed with 'NoneType'
   object is not subscriptable after `em.scattering()` succeeded -- reproduced even for `ridge`/
@@ -202,25 +202,26 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   which already had v1.0.4). Updating this desktop to **v1.0.4 fixed it**: both `ridge`/`core` and
   `loaded`/`strip` scattering confirmed working 2026-10-04. A v1.0.5 is also available
   (emodephotonix.com/downloads) but not yet tried.
-- [ ] **Bulk-absorption loss (SH-wavelength loss model item 1) is not actually wired up -- confirmed
-  a genuine EMode bug, not version drift.** Re-tested on v1.0.4 (2026-10-04): a complex (lossy)
-  `refractive_index_equation` still crashes `em.FDM()` with the same error, now with a full
-  server-side traceback pointing at a real defect -- `numpy_shape_utils.py`'s `add_scaled()`
-  (called from `EMP_functions.py`'s `make_tensors` during meshing) adds a complex-valued array into
-  a float64 output without upcasting
-  (`numpy.core._exceptions._UFuncOutputCastingError: Cannot cast ufunc 'add' output from
-  dtype('complex128') to dtype('float64')`). Worth reporting to EMode Photonix support with this
-  traceback. `add_material(loss=...)`, the documented non-deprecated way to set bulk loss, also
-  still silently fails to reach `report()`'s modal loss column on v1.0.4. The only mechanism
-  confirmed to work is `shape(loss_dB_per_m=...)` -- deprecated in EMode's own message, but
-  functional and correctly confinement-weighted (verified: a 300 nm-wide lossy strip with bulk
-  loss=1e6 dB/m reports a correctly confinement-weighted ~9.4e5 dB/m modal loss; a 0-loss control
-  reports exactly 0). Needs: geometry builders computing bulk alpha(lambda) from their own n,k
-  models and re-setting it on the lossy shape(s) at every solve wavelength (pump band and SH band
-  need very different values), which `geometry.py` / `survey.py` don't do yet.
-  `shg_physics.bulk_loss_dB_per_m` (Im(n_eff) -> dB/m) is written and tested but currently unused --
-  it was the first (wrong) approach; keep it for a legitimate future Im(n_eff) source (e.g. PML
-  leakage loss) but it will never fire via bulk material k through the normal solve path.
+- [x] **Bulk-absorption loss (SH-wavelength loss model item 1) is now wired up, as a post-solve
+  perturbation, not via EMode re-solve.** EMode-side options were dead ends, confirmed across
+  v1.0.0/1.0.4/1.0.5: a complex `refractive_index_equation` crashes `em.FDM()` every time (full
+  traceback points at a real defect in EMode's own `numpy_shape_utils.add_scaled`, called from
+  `make_tensors` during meshing -- worth reporting to EMode Photonix); `add_material(loss=...)`
+  never reaches a plain FDM solve's modal loss at all (confirmed EME-only per EMode's 1.0.5 release
+  notes, not a bug for our use case). `shape(loss_dB_per_m=...)` (deprecated in EMode's own
+  message) DOES work and is correctly confinement-weighted when read back via `report()` -- but
+  feeding it TiO2's large SH-band bulk loss and re-solving was found to corrupt SH-mode
+  re-identification at refine time (overlap_shape for a nominally-unchanged crossing dropped from
+  0.051 to 0.0036, SH label changed TM165? -> TM183 -- a genuinely different candidate mode got
+  matched, not just relabeled). Fixed by computing the loss as a pure first-order-perturbation
+  post-solve step instead: `geometry.Loaded.lossy_mask()` (the strip region) +
+  `lossy_bulk_loss_dB_per_m()` (the strip material's own bulk alpha(lambda) from `strip_loss_eq`,
+  no EMode call at all) and `survey.bulk_absorption_loss()` (confinement Gamma from the
+  already-solved lossless mode's own fields, via `shg_physics.power_fraction_in`, times the bulk
+  value) -- no re-solve, so mode identification is untouched. Re-ran `loaded_smoke`: every label,
+  NCE and overlap_shape now matches the pre-bulk-loss run exactly, confirming the fix.
+  `shg_physics.bulk_loss_dB_per_m` (Im(n_eff) -> dB/m) is still unused dead code from the original
+  (wrong) approach; keep it for a legitimate future Im(n_eff) source (e.g. PML leakage loss).
 - [ ] d15 values (assume Kleinman for now); d-tensor dispersion to 450 → 225 nm.
 - [x] Default N_pump, N_SH, λ_SH step, SH n_eff window margins -- set in `survey_config.py`
   (`num_pump_tm=3`, `num_pump_te=2`, `num_sh_modes=30`, `lambda_step=1.0 nm`,
@@ -350,3 +351,44 @@ updating this desktop to v1.0.4:
 Net: the loaded-family pipeline's roughness-scattering loss is now trustworthy without any code
 change. Bulk SH-absorption loss (TiO2 etc.) still needs the `shape(loss_dB_per_m=...)` workaround
 described above, independent of EMode version.
+
+### Bulk SH-absorption wired up, and EMode 1.0.5 checked (2026-10-04, later same day)
+
+Updated this desktop to EMode v1.0.5: did NOT fix the complex-equation `em.FDM()` crash (identical
+error, traceback now at a shifted line number confirming the surrounding code did change) or
+`add_material(loss=...)` (still 0.000 in `report()`). Checked EMode's 1.0.5 release notes directly:
+the material-loss fix that version shipped was scoped to **EME** ("a lossy material amplified the
+mode in EME... now has an effective index with a negative imaginary part") -- not FDM. Re-verified
+`n_eff_tilde` directly (not just `report()`) stays exactly `0j` for `add_material(loss=...)`
+regardless of the loss magnitude (tried up to 1e8 dB/m): the material `loss` parameter is an
+EME-only mechanism, not a bug we were hitting for FDM mode-solving.
+
+So `shape(loss_dB_per_m=...)` + re-solve was the only remaining option -- tried it first (geometry
+builders setting bulk alpha(lambda) on the lossy shape via `shape()`, re-solving, reading
+`report()`'s "Loss (dB/m)" column). It technically worked (correct confinement-weighted values,
+confirmed against a toy single-slab structure), but re-running `loaded_smoke` with it showed the
+refined crossings had DRIFTED from the pre-bulk-loss run: the ~225.38 nm TM00 crossing's SH label
+changed TM165? -> TM183 and its `overlap_shape` dropped 0.051 -> 0.0036, even though nothing about
+the crossing's identity should have changed. Root cause: TiO2's SH-band bulk loss is enormous
+(alpha ~3.4e8 dB/m, 215-235 nm) -- large enough that re-solving with it set perturbs the solver's
+eigenvalue search enough to return a different candidate mode set than the lossless screening
+pass, so the argmax-similarity match locks onto a different physical mode. Switched to a pure
+post-solve perturbation instead (no EMode re-solve): `geometry.Loaded.lossy_mask()` returns the
+strip region, `lossy_bulk_loss_dB_per_m()` computes the material's own bulk alpha(lambda) in
+Python from `strip_loss_eq` (no EMode call), and `survey.bulk_absorption_loss()` multiplies by
+Gamma = the already-solved lossless mode's own power fraction in that mask
+(`shg_physics.power_fraction_in`). Re-ran `loaded_smoke` again: every refined crossing's label,
+NCE and overlap_shape now match the original pre-bulk-loss run exactly (mode ID is untouched,
+since nothing is re-solved), while `sh_absorption_dB_per_m` / `pump_absorption_dB_per_m` are now
+real, nonzero, physically-scaled values (e.g. the best crossing, TM00->TM165? at 225.38 nm, now
+carries ~2.6e7 dB/m of SH-band bulk absorption -- about 7.7% modal confinement in the TiO2 strip
+times TiO2's bulk value).
+
+Finding (not a bug -- this is what including real TiO2 absorption for the first time reveals):
+with TiO2's actual SH-band k, **any crossing whose SH mode has more than a percent or so of its
+power in the strip is efficiency-killed** -- `L_opt` pins at the 1 um floor of
+`loss_limited_length`'s search grid for several of the smoke run's best-NCE crossings, meaning the
+true optimum is shorter still. A `loaded` design wanting usable SHG efficiency likely needs the
+*phase-matched* SH mode's field kept largely out of the strip (using the strip mainly to perturb
+dispersion for phase matching, not as part of the SH mode's core), which is a real geometry-design
+constraint for Step 2, not just a materials-data gap.

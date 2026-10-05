@@ -28,6 +28,24 @@ def eval_index_equation(eq, wavelength_nm):
     return float(np.real(eval(eq, {'__builtins__': {}}, {'x': x})))
 
 
+def eval_complex_index_equation(eq, wavelength_nm):
+    """Like eval_index_equation but keeps the imaginary (k) part -- for Python-side loss
+    bookkeeping only; EMode's FDM solver itself cannot consume a complex
+    refractive_index_equation (crashes, confirmed EMode bug as of v1.0.5 -- see PLAN.md), so bulk
+    material loss has to be computed here and fed in separately via shape(loss_dB_per_m=...)."""
+    x = wavelength_nm / 1000.0  # noqa: F841 -- used by eval
+    return complex(eval(eq, {'__builtins__': {}}, {'x': x}))
+
+
+def material_loss_dB_per_m(k, wavelength_nm):
+    """Bulk power-absorption loss [dB/m] from a material's own extinction coefficient k at this
+    wavelength (not a modal/confinement-weighted value -- EMode's shape(loss_dB_per_m=...) applies
+    the confinement weighting once this is fed in as the shape's bulk loss)."""
+    k0 = 2 * np.pi / (wavelength_nm * 1e-9)
+    alpha_per_m = 2 * k0 * max(float(k), 0.0)
+    return alpha_per_m * 10.0 / np.log(10.0)
+
+
 def _scalar_index(value):
     """em.refractive_index() may return a scalar or [n_x, n_y, n_z]; take the largest."""
     arr = np.real(np.atleast_1d(np.asarray(value, dtype=complex)))
@@ -145,8 +163,14 @@ class Loaded:
     etch_depth = 0 -> pure loaded (unetched AlN, e.g. Zetian Mi / John's proposal);
     etch_depth = t_film -> strip on a full AlN ridge; in between -> etched rib-loaded (FBH).
     strip_material: an EMode database name (e.g. 'TiO2'), or set strip_eq (isotropic index
-    equation in um, may be complex via 'j') to add it as a custom material. strip_chi2: key into
-    d_tensors_pm if the strip is nonlinear (AlGaN/ScAlN), else None.
+    equation in um) to add it as a custom material -- strip_eq must be REAL-only (a complex
+    refractive_index_equation crashes em.FDM() outright, confirmed EMode bug as of v1.0.5). For a
+    lossy strip, also set strip_loss_eq (a separate, complex n+ik equation, same string format as
+    strip_eq); survey.py applies its bulk loss as a post-solve perturbation (lossy_mask() +
+    lossy_bulk_loss_dB_per_m(), see their docstrings) rather than feeding it into EMode and
+    re-solving -- re-solving with TiO2's large SH-band loss was found to corrupt SH-mode
+    re-identification. strip_chi2: key into d_tensors_pm if the strip is nonlinear (AlGaN/ScAlN),
+    else None.
 
     UNVERIFIED (check with em.plot(component='Index') once): EMode's mask/etch_depth convention
     for a partial etch (mask = unetched rib width, slab = t_film - etch_depth outside) and that
@@ -155,8 +179,8 @@ class Loaded:
     """
     family = 'loaded'
     defaults = {'etch_depth': 0.0, 'w_rib': None, 'sidewall_angle': 5.0,
-                'strip_material': 'TiO2', 'strip_eq': None, 'strip_chi2': None,
-                'strip_sidewall': 5.0, 'strip_offset': 0.0,
+                'strip_material': 'TiO2', 'strip_eq': None, 'strip_loss_eq': None,
+                'strip_chi2': None, 'strip_sidewall': 5.0, 'strip_offset': 0.0,
                 'substrate_height': 1000.0, 'topclad_height': 800.0,
                 'substrate_material': 'Al2O3', 'topclad_material': 'SiO2',
                 'core_eq_o': AlN_EQ_O, 'core_eq_e': AlN_EQ_E, 'core_chi2': 'AlN'}
@@ -207,6 +231,34 @@ class Loaded:
                  sidewall_angle=p['strip_sidewall'], **rough)
         em.shape(name='TopClad', material=p['topclad_material'], height=p['topclad_height'],
                  shape_type='conformal')
+
+    def lossy_mask(self, x, y):
+        """The strip mask, for confinement-weighted bulk absorption -- None if strip_loss_eq
+        isn't set (lossless strip, e.g. plain n only, or a non-absorbing strip material).
+
+        NOTE: bulk loss is applied as a pure post-solve perturbation (survey.py computes
+        Gamma = fraction of the ALREADY-SOLVED lossless mode's power in this mask, times
+        lossy_bulk_loss_dB_per_m()) rather than by feeding shape(loss_dB_per_m=...) into EMode
+        and re-solving. An earlier version did the latter and it corrupted SH-mode
+        re-identification at refine time: TiO2's SH-band loss is so large (alpha ~3e8 dB/m) that
+        re-solving with it set shifts the solver's returned candidate modes enough that the
+        argmax-similarity match picks a genuinely different mode (confirmed 2026-10-04: overlap_
+        shape for nominally the same crossing dropped from 0.051 to 0.0036, SH label changed
+        TM165? -> TM183). Perturbation theory (first-order, valid since TiO2 is a thin
+        low-confinement region for every mode seen so far) sidesteps that entirely and is also
+        cheaper -- no extra EMode solve at all.
+        """
+        return self._masks(x, y)[1] if self.params['strip_loss_eq'] else None
+
+    def lossy_bulk_loss_dB_per_m(self, wavelength_nm):
+        """The strip material's own bulk absorption [dB/m] at this wavelength (not yet
+        confinement-weighted -- multiply by the mode's power fraction in lossy_mask()). 0.0 if
+        strip_loss_eq isn't set."""
+        p = self.params
+        if not p['strip_loss_eq']:
+            return 0.0
+        k = eval_complex_index_equation(p['strip_loss_eq'], wavelength_nm).imag
+        return material_loss_dB_per_m(k, wavelength_nm)
 
     def _masks(self, x, y):
         p = self.params
@@ -288,6 +340,8 @@ class Loaded:
 Ridge.symmetric_x = True
 Ridge.scatter_shapes = ['core']
 Ridge.export_regions = lambda self, em, lam: {}
+Ridge.lossy_mask = lambda self, x, y: None  # no lossy shape in this family yet
+Ridge.lossy_bulk_loss_dB_per_m = lambda self, wavelength_nm: 0.0
 
 FAMILIES = {'ridge': Ridge, 'loaded': Loaded}
 

@@ -153,6 +153,24 @@ def native_scattering(em, mode_idx, shapes=('core',)):
     return total
 
 
+def bulk_absorption_loss(geom, x, y, mode, wavelength_nm):
+    """Confinement-weighted bulk-material absorption [dB/m] for one already-solved (lossless)
+    mode, by first-order perturbation theory: Gamma (the mode's own power fraction in the lossy
+    region) times that material's bulk loss at this wavelength. 0.0 if the geometry has no lossy
+    region defined (geom.lossy_mask returns None). Deliberately NOT done by feeding
+    shape(loss_dB_per_m=...) into EMode and re-solving -- TiO2's SH-band loss is large enough
+    that re-solving with it set was found to corrupt SH-mode re-identification (see
+    geometry.Loaded.lossy_mask's docstring)."""
+    mask = geom.lossy_mask(x, y)
+    if mask is None:
+        return 0.0
+    bulk = geom.lossy_bulk_loss_dB_per_m(wavelength_nm)
+    if bulk <= 0:
+        return 0.0
+    gamma = sp.power_fraction_in(mode, mask)
+    return 0.0 if np.isnan(gamma) else gamma * bulk
+
+
 def small(f, step=2):
     """Down-sampled transverse field (for cheap tracking/identification)."""
     return {'Ex': f['Ex'][::step, ::step].astype(np.complex64),
@@ -292,8 +310,9 @@ def characterize_pump(em, geom, cfg, t, lam_center, export_path=None):
     i = int(np.argmax(sims))
     mask = geom.core_mask(x, y)
     scat = native_scattering(em, i, geom.scatter_shapes)
-    absn = sum(am.compute_mechanism_losses(mask, x[1] - x[0], y, modes[i]['Sz'],
-                                           cfg['pump_absorption_mechanisms']).values())
+    absn = (sum(am.compute_mechanism_losses(mask, x[1] - x[0], y, modes[i]['Sz'],
+                                            cfg['pump_absorption_mechanisms']).values())
+            + bulk_absorption_loss(geom, x, y, modes[i], 2 * lam_center))
     regions = geom.cerenkov_regions(em, lam_center)
     flags = sp.cerenkov_flags(n[i].real, regions)
     allowed = [f for f in flags if f['allowed']]
@@ -407,6 +426,7 @@ def refine_crossing(em, geom, cfg, c, export_path):
     sims_p = [sp.transverse_similarity(p['small'][kp], small(f), dA_small) for f in pm]
     ip = int(np.argmax(sims_p))
     scat_p = native_scattering(em, ip, geom.scatter_shapes)
+    bulk_p = bulk_absorption_loss(geom, x, y, pm[ip], 2 * lam)
 
     em.settings(boundary_condition=sh_bc(geom))
     n_s, te_s = solve(em, 'shx', wavelength=lam, num_modes=cfg['num_sh_refine_modes'],
@@ -416,6 +436,7 @@ def refine_crossing(em, geom, cfg, c, export_path):
     sims_s = [sp.transverse_similarity(c['ref_small'], small(f), dA_small) for f in sm]
     i_s = int(np.argmax(sims_s))
     scat_s = native_scattering(em, i_s, geom.scatter_shapes)
+    bulk_s = bulk_absorption_loss(geom, x, y, sm[i_s], lam)
     try:
         lin = float(abs(em.overlap(profile_a='pumpx', mode_a=ip, profile_b='shx', mode_b=i_s)))
     except Exception:  # noqa: BLE001
@@ -429,10 +450,12 @@ def refine_crossing(em, geom, cfg, c, export_path):
     d_ref = cfg['d_tensors_pm'][cfg['d_ref_material']]['d33'] * 1e-12
     np_, ns_ = float(n_p[ip].real), float(n_s[i_s].real)
     dx = x[1] - x[0]
-    abs_p = sum(am.compute_mechanism_losses(mask, dx, y, pm[ip]['Sz'],
-                                            cfg['pump_absorption_mechanisms']).values())
-    abs_s = sum(am.compute_mechanism_losses(mask, dx, y, sm[i_s]['Sz'],
-                                            cfg['sh_absorption_mechanisms']).values())
+    abs_p = (sum(am.compute_mechanism_losses(mask, dx, y, pm[ip]['Sz'],
+                                             cfg['pump_absorption_mechanisms']).values())
+             + bulk_p)
+    abs_s = (sum(am.compute_mechanism_losses(mask, dx, y, sm[i_s]['Sz'],
+                                             cfg['sh_absorption_mechanisms']).values())
+             + bulk_s)
     L_opt, L_eff, peak = sp.loss_limited_length(eta, np.nan_to_num(scat_p) + abs_p,
                                                 np.nan_to_num(scat_s) + abs_s)
     cer = sp.cerenkov_flags(np_, geom.cerenkov_regions(em, lam))
