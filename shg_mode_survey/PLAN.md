@@ -285,11 +285,10 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   verified clean" finding below. Local `exports/` turned out to be gone (laptop-only, gitignored),
   so this needed a fresh re-run rather than `reprocess_run.py`; 0 of 1109 newly-verified crossings
   were window-limited. `ridge`'s committed "best" numbers need no correction.
-- [ ] **`wide_window` has not been independently re-verified** -- same family, same reasoning
-  (plain ridge, nothing to create the kind of shallow background region every `loaded`-family
-  artifact needed), but not actually re-run yet. Same mechanism as `trial_grid`'s re-run would
-  apply (`survey.py wide_window survey_config_wide`, ~2 geometries, wider SH window so likely
-  slower per geometry than `trial_grid`'s).
+- [x] **`wide_window` re-verified, also fully clean** -- 2 geometries, 36 min, 0 window-limited
+  out of 123 newly-verified crossings (0 at screening, 0 refined). Both `ridge`-family runs now
+  confirmed; the "ridge doesn't produce this artifact" explanation in the `trial_grid` finding
+  holds across both.
 - [ ] **New `hybrid` (AlN/SiNx) geometry family needs its em.plot(component='Index') geometry
   check and smoke survey** -- `geometry.Hybrid` is written and unit-tested (masks tile correctly,
   core embeds in shell, invalid dimensions rejected) but the actual EMode build (shape `priority`
@@ -667,3 +666,7 @@ plain ridge is a simple, strongly-guiding core directly on the substrate with no
 shallow, weakly-confining background region for a box mode to hide near -- `loaded`'s unetched AlN
 film (and now `hybrid`'s SiNx shell) both have exactly that kind of shallow surrounding region,
 which is where every `loaded`-family window artifact was found living.
+
+`wide_window` (2 geometries, wider 215-275 nm SH scan) re-run the same way: also fully clean, 0 of
+123 newly-verified crossings window-limited. Both `ridge`-family runs are now confirmed; "ridge
+doesn't produce this artifact" isn't a one-run coincidence.
