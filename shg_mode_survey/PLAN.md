@@ -697,8 +697,28 @@ clean. No-EMode test suite (`test_geometry.py`) re-run clean, all passing (these
 the pure-Python mask logic, which was already correct -- the bug was specifically in the EMode-side
 `build()`, not something they'd have caught).
 
-Not yet done: the `hybrid_smoke` survey itself (Step 1 pipeline on this family, looking for a real
-TM00->TM20-or-similar UV phase match) hasn't been run yet, and the family has an unetched-ish
-shallow SiNx shell region similar in spirit to `loaded`'s unetched AlN film -- worth checking its
-results against the window/box-mode artifact explicitly rather than assuming "ridge-like" clean,
-once real results exist.
+### `hybrid_smoke` + first 6-geometry `hybrid` sweep (2026-10-05, same day)
+
+Ran `hybrid_smoke` (1 geometry, pipeline validation) then the full `hybrid1` sweep
+(`survey_config_hybrid.py`'s 6 geometries: h_core in (300,350,400), w_core in (400,500), with
+`sin_width = w_core+400`, `sin_height = h_core+300`). All 6 `ok`, no failures, ~46 min total.
+**Zero window-limited crossings across all 2290 screened + 48 refined results** (max `sh_edge_ratio`
+among refined: ~3e-15) -- `hybrid`'s shallow SiNx shell region was flagged as a plausible artifact
+risk (similar in spirit to `loaded`'s unetched film, where every prior artifact was found), but
+didn't produce one here, at least not at this sample size/these geometries.
+
+Headline: **21.1 %/W/cm^2** (TM01->TM101 @ 227.41 nm, h=400/w=400/sin_w=800/sin_h=700) --
+well below `ridge`'s 159 %/W/cm^2 and `loaded`'s best. More importantly: **no TM00->TM20 (or
+TM00->TM02) match anywhere in the full 2290-crossing dataset** -- every top result pairs TM01 or
+TM10 (not TM00) with a high-order, often uncertainly-identified SH mode (TM101, TM103?, TM411?,
+TM122?, etc.), not the paper's specific TM00->TM20 mechanism.
+
+This isn't evidence the hybrid mechanism doesn't work in the UV band -- it's evidence this specific
+set of 6 geometries wasn't *designed* to trigger it. The paper gets TM00->TM20 phase matching by
+choosing the SiNx shell's extent specifically so AlN sits where TM20's transverse field keeps one
+sign (between its two interior nodes); `sin_width`/`sin_height` here were picked as arbitrary
+margins (core size + fixed offset), not tuned to that condition. Finding the real UV-band hybrid
+result (if it exists) needs a `sin_width` (and/or `sin_height`) sweep at fixed `h_core`/`w_core`,
+explicitly searching for the shell extent where TM20 appears in the pump-mode list AND the AlN
+core's position avoids cancelling against TM20's sign flip -- not more guesses at the margin size.
+Deferred pending user direction on whether to pursue that targeted sweep.
