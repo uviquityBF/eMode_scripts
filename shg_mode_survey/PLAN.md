@@ -1,8 +1,10 @@
 # SHG Mode Survey — Plan
 
 Status (2026-10-04): Step 1 and Step 1b implemented for the `ridge` family and trial-run; Step 2's
-`loaded` family implemented and geometry-verified, but its loss numbers are not yet trustworthy
-(see "Implementation status & findings" at the end, 2026-10-04 entry). Builds on
+`loaded` family implemented, geometry-verified, and its scattering loss is now trustworthy
+(an EMode-version bug on this machine, fixed by updating to v1.0.4). Bulk SH-absorption loss
+(e.g. TiO2) is still not wired up -- a separate, still-open EMode-API limitation (see
+"Implementation status & findings" at the end, 2026-10-04 entries). Builds on
 `loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
 
 ## Goal
@@ -192,27 +194,33 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   (`materials/fit_tio2_sellmeier.py`, Siefke et al. 2016) and **is** wired into
   `survey_config_loaded.py`, but see the bulk-loss blocker below -- only the real (n) part is
   usable right now, not the loss.
-- [ ] **Bulk-absorption loss (SH-wavelength loss model item 1) is not actually wired up, and the
-  PLAN's original assumption about how to do it is wrong.** Found 2026-10-04 while smoke-testing
-  `loaded` with real TiO2 k data (see findings below): a complex (lossy) `refractive_index_equation`
-  crashes `em.FDM()` outright, and `add_material(loss=...)` silently does nothing (verified via
-  `report()`). The only mechanism confirmed to work is `shape(loss_dB_per_m=...)` -- deprecated in
-  EMode's own message, but functional and correctly confinement-weighted. Needs: geometry builders
-  computing bulk alpha(lambda) from their own n,k models and re-setting it on the lossy shape(s) at
-  every solve wavelength (pump band and SH band need very different values), which `geometry.py` /
-  `survey.py` don't do yet. `shg_physics.bulk_loss_dB_per_m` (Im(n_eff) -> dB/m) is written and
-  tested but currently unused -- it was the first (wrong) approach; keep it for a legitimate future
-  Im(n_eff) source (e.g. PML leakage loss) but it will never fire via bulk material k through the
-  normal solve path.
-- [ ] **`native_scattering()` returns NaN for every pump and SH mode in the `loaded` family**
-  (confirmed 2026-10-04: 5/5 pumps and all crossings in a `loaded_smoke` run) -- `em.scattering()`
-  itself succeeds but the following `em.get_shape()` call fails ('NoneType' object is not
-  subscriptable), so scattering loss is silently treated as zero. Works fine for `ridge`/`core` (0
-  NaN across 140 refined rows in the committed `trial_grid` run). Root cause not isolated; possibly
-  related to the `strip` shape being built with `etch_depth == height` (fully etched). Until fixed,
-  **all `loaded`-family loss numbers (scattering + the bulk-absorption item above) are effectively
-  zero** -- `peak_efficiency`/`L_opt` from any `loaded` run so far are not trustworthy; only the
-  lossless NCE is valid.
+- [x] **`native_scattering()` NaN for every `loaded`-family mode was an EMode version bug, not a
+  code/geometry bug.** This desktop's EMode.exe was v1.0.0.0 (`get_shape()` failed with 'NoneType'
+  object is not subscriptable after `em.scattering()` succeeded -- reproduced even for `ridge`/
+  `core` via the real `survey.py` code path, so it was never `loaded`-specific, just not noticed
+  for `ridge` because that family's committed runs predate this machine / were run on the laptop,
+  which already had v1.0.4). Updating this desktop to **v1.0.4 fixed it**: both `ridge`/`core` and
+  `loaded`/`strip` scattering confirmed working 2026-10-04. A v1.0.5 is also available
+  (emodephotonix.com/downloads) but not yet tried.
+- [ ] **Bulk-absorption loss (SH-wavelength loss model item 1) is not actually wired up -- confirmed
+  a genuine EMode bug, not version drift.** Re-tested on v1.0.4 (2026-10-04): a complex (lossy)
+  `refractive_index_equation` still crashes `em.FDM()` with the same error, now with a full
+  server-side traceback pointing at a real defect -- `numpy_shape_utils.py`'s `add_scaled()`
+  (called from `EMP_functions.py`'s `make_tensors` during meshing) adds a complex-valued array into
+  a float64 output without upcasting
+  (`numpy.core._exceptions._UFuncOutputCastingError: Cannot cast ufunc 'add' output from
+  dtype('complex128') to dtype('float64')`). Worth reporting to EMode Photonix support with this
+  traceback. `add_material(loss=...)`, the documented non-deprecated way to set bulk loss, also
+  still silently fails to reach `report()`'s modal loss column on v1.0.4. The only mechanism
+  confirmed to work is `shape(loss_dB_per_m=...)` -- deprecated in EMode's own message, but
+  functional and correctly confinement-weighted (verified: a 300 nm-wide lossy strip with bulk
+  loss=1e6 dB/m reports a correctly confinement-weighted ~9.4e5 dB/m modal loss; a 0-loss control
+  reports exactly 0). Needs: geometry builders computing bulk alpha(lambda) from their own n,k
+  models and re-setting it on the lossy shape(s) at every solve wavelength (pump band and SH band
+  need very different values), which `geometry.py` / `survey.py` don't do yet.
+  `shg_physics.bulk_loss_dB_per_m` (Im(n_eff) -> dB/m) is written and tested but currently unused --
+  it was the first (wrong) approach; keep it for a legitimate future Im(n_eff) source (e.g. PML
+  leakage loss) but it will never fire via bulk material k through the normal solve path.
 - [ ] d15 values (assume Kleinman for now); d-tensor dispersion to 450 → 225 nm.
 - [x] Default N_pump, N_SH, λ_SH step, SH n_eff window margins -- set in `survey_config.py`
   (`num_pump_tm=3`, `num_pump_te=2`, `num_sh_modes=30`, `lambda_step=1.0 nm`,
@@ -318,3 +326,27 @@ was verified to NOT reach the modal loss report at all (`report()` showed 0.000 
 the material's `loss` value). Wiring real SH-band TiO2 absorption into the survey therefore means
 computing bulk alpha(lambda) in Python from the n,k fit and re-setting it via the deprecated
 shape-level call at every solve wavelength -- not yet implemented.
+
+### EMode version gap resolved the scattering NaN (2026-10-04, later same day)
+
+This desktop's EMode.exe was v1.0.0.0 while the laptop (which built this whole codebase and
+produced `trial_grid`) was on v1.0.4 -- the two machines' EMode installs had silently diverged;
+nothing in the repo/CLAUDE.md tracks or syncs the EMode.exe version itself (only the git repo and
+`requirements.txt`-managed Python packages). Re-tested all three EMode-API findings above after
+updating this desktop to v1.0.4:
+
+- `get_shape()` after `em.scattering()`: **fixed**. Re-ran `loaded_smoke` fresh with no code
+  changes -- scattering now populates for every pump and SH mode, matching `ridge`'s long-working
+  behavior. The "possibly related to etch_depth == height" theory above was a red herring; it was
+  never geometry-specific, just unnoticed on `ridge` because this machine hadn't run that family
+  since the version gap opened. The committed `loaded_smoke` run now reflects this: best match
+  TM00->TM165? @ 225.4 nm, NCE 33.4 %/W/cm^2 unchanged (lossless), but loss-limited peak efficiency
+  corrected from a bogus 47.4 %/W (artifact of scattering silently reading as zero, L_opt pinned at
+  the 200 mm cap) down to a physically sane 6.3 %/W/cm^2 at L_opt = 12.1 mm.
+- Complex `refractive_index_equation` crashing `em.FDM()`: **still broken on v1.0.4**, now with a
+  full traceback confirming a genuine EMode-side bug (see Open items). A v1.0.5 exists; not tried.
+- `add_material(loss=...)`: **still broken on v1.0.4**, loss never reaches `report()`.
+
+Net: the loaded-family pipeline's roughness-scattering loss is now trustworthy without any code
+change. Bulk SH-absorption loss (TiO2 etc.) still needs the `shape(loss_dB_per_m=...)` workaround
+described above, independent of EMode version.
