@@ -194,6 +194,26 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   (`materials/fit_tio2_sellmeier.py`, Siefke et al. 2016) and **is** fully wired into
   `survey_config_loaded.py` (both n via `strip_eq` and loss via `strip_loss_eq`, see the
   bulk-absorption item below for how the loss actually reaches results).
+
+  **AlN k candidates found 2026-10-04 (research only -- NOT wired in, needs a user decision, see
+  "why" below):**
+  | source | material quality | k near 215-235 nm | alpha near 225 nm |
+  |---|---|---|---|
+  | AlN boule/crystal patents (e.g. "Aluminum nitride crystals having low Urbach energy...") | ultra-pure bulk single crystal | ~1-5e-5 (from alpha < 10-30 cm^-1 claims) | ~15-30 cm^-1 |
+  | Beliaev et al. 2021, J. Vac. Sci. Technol. A 39, 043408 -- refractiveindex.info `main/AlN/nk/Beliaev1.yml`, CC0, tabulated 211-1690 nm | 303 nm reactive-sputtered film | ~0.045-0.12 | ~25000-45000 cm^-1 |
+  | (unverified -- found only as a search-engine summary, not an independently fetched citation) MOCVD epitaxial AlN on sapphire at 233 nm | epitaxial thin film | ~0.005-0.05 | ~2800-28000 cm^-1 |
+
+  These span ~4 orders of magnitude in k, entirely driven by material quality/growth method
+  (single crystal vs epitaxial vs sputtered/amorphous) -- not a case where one literature value is
+  simply "more accurate" than another. Picking wrong would scale pump-band bulk absorption by up
+  to 10,000x. This pipeline's existing `pump_absorption_mechanisms` (interface-localized
+  dislocation/impurity terms) implicitly assume a relatively clean *bulk* AlN with loss
+  concentrated at growth interfaces, which points away from the sputtered/amorphous end -- but
+  deciding between single-crystal-like and MOCVD-epitaxial-like values needs to know the actual
+  AlN growth process this project's wafers use, which isn't in this repo. Left unresolved rather
+  than guessed; the Beliaev dataset is the most concretely verified of the three (real tabulated
+  data, CC0, same `fit_tio2_sellmeier.py`-style pipeline would apply) if a conservative
+  (upper-bound) estimate is wanted meanwhile.
 - [x] **`native_scattering()` NaN for every `loaded`-family mode was an EMode version bug, not a
   code/geometry bug.** This desktop's EMode.exe was v1.0.0.0 (`get_shape()` failed with 'NoneType'
   object is not subscriptable after `em.scattering()` succeeded -- reproduced even for `ridge`/
