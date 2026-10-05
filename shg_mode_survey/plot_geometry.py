@@ -25,7 +25,7 @@ from plot_utils import savefig_retry  # noqa: E402
 # keep spatially-adjacent layers (Substrate/film-or-core/strip/TopClad) off the one flagged
 # adjacent pair (slot 2 orange next to slot 4 yellow) -- not used here at all.
 REGION_COLOR = {'Substrate': '#2a78d6', 'core': '#eb6834', 'film': '#eb6834',
-                'strip': '#4a3aa7', 'TopClad': '#1baf7a'}
+                'strip': '#4a3aa7', 'shell': '#4a3aa7', 'TopClad': '#1baf7a'}
 RESOLUTION_NM = 5.0
 MARGIN_X_NM = 500.0
 MARGIN_Y_TOP_NM = 600.0

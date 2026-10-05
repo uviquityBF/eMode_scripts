@@ -1,0 +1,75 @@
+{
+ "source": "L. Yu. Beliaev et al., Thin Solid Films 763, 139568 (2022); 100 nm PECVD SiNx film; table via refractiveindex.info (CC0), SiNx_Beliaev2022_nk.csv",
+ "model": "eps = eps_inf + sum_j B_j lam^2/(lam^2 - lam_j^2 - 1j*g_j*(lam_j/lam)**P*lam); n+ik = sqrt(eps); lam in um",
+ "fit_range_nm": [
+  150.0,
+  600.0
+ ],
+ "k_weight": 3.0,
+ "note": "Unlike TiO2, the raw data itself is ~0 in the pump band (k < 1e-4 by 420 nm, exactly 0 by 450 nm in the table) so no pump-band tail-weighting trick was needed -- SiNx genuinely looks transparent there, not just a fit artifact.",
+ "params": {
+  "eps_inf": 2.274380495704254,
+  "damping_power_P": 8.902567741041674,
+  "oscillators": [
+   {
+    "B": 0.09289592132779848,
+    "lam0_um": 0.20495924983907593,
+    "g_um": 0.1557727596107601
+   },
+   {
+    "B": 0.3273025519933312,
+    "lam0_um": 0.18732697570029247,
+    "g_um": 0.07942782617676247
+   },
+   {
+    "B": 1.2570151468238537,
+    "lam0_um": 0.15999999999999998,
+    "g_um": 1.3372653937768237e-13
+   },
+   {
+    "B": 9.784152177541806e-08,
+    "lam0_um": 0.03000090475666826,
+    "g_um": 0.00029102051953802096
+   }
+  ]
+ },
+ "rms_n": 0.000862389324378476,
+ "rms_k": 0.001205930553984838,
+ "max_abs_err_n": 0.0026959888451512093,
+ "max_abs_err_k": 0.005146693474294639,
+ "n_err_pump_band_max": 0.00019315844582745711,
+ "model_values": {
+  "215": {
+   "n": 2.5055,
+   "k": 0.1392,
+   "alpha_dB_per_cm": 353401.5
+  },
+  "225": {
+   "n": 2.444,
+   "k": 0.0945,
+   "alpha_dB_per_cm": 229305.1
+  },
+  "235": {
+   "n": 2.3954,
+   "k": 0.0625,
+   "alpha_dB_per_cm": 145049.5
+  },
+  "430": {
+   "n": 2.0634,
+   "k": 0.0,
+   "alpha_dB_per_cm": 41.0
+  },
+  "450": {
+   "n": 2.0558,
+   "k": 0.0,
+   "alpha_dB_per_cm": 23.9
+  },
+  "470": {
+   "n": 2.0494,
+   "k": 0.0,
+   "alpha_dB_per_cm": 14.4
+  }
+ },
+ "emode_equation_complex": "(2.27438+0.0928959*x**2/(x**2-0.0420083-1j*0.155773*(0.204959/x)**8.90257*x)+0.327303*x**2/(x**2-0.0350914-1j*0.0794278*(0.187327/x)**8.90257*x)+1.25702*x**2/(x**2-0.0256-1j*1.33727e-13*(0.16/x)**8.90257*x)+9.78415e-08*x**2/(x**2-0.000900054-1j*0.000291021*(0.0300009/x)**8.90257*x))**0.5",
+ "emode_equation_real": "(2.27438+0.0928959*x**2/(x**2-0.0420083)+0.327303*x**2/(x**2-0.0350914)+1.25702*x**2/(x**2-0.0256)+9.78415e-08*x**2/(x**2-0.000900054))**0.5"
+}

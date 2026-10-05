@@ -368,7 +368,192 @@ Ridge.export_regions = lambda self, em, lam: {}
 Ridge.lossy_mask = lambda self, x, y: None  # no lossy shape in this family yet
 Ridge.lossy_bulk_loss_dB_per_m = lambda self, wavelength_nm: 0.0
 
-FAMILIES = {'ridge': Ridge, 'loaded': Loaded}
+
+class Hybrid:
+    """AlN/SiNx hybrid waveguide (Honda et al., "Second harmonic generation in horizontally
+    aligned AlN/SiNx hybrid waveguide for integrated wavelength converter," Appl. Phys. Express
+    18, 122001 (2025)): a trapezoidal AlN core (full etch, same shape convention as `Ridge`)
+    embedded within a wider, taller SiNx "shell" block, on sapphire, SiO2 top clad. The paper
+    demonstrates TM00->TM20 phase matching at telecom wavelengths (1550/775 nm) by positioning
+    the AlN specifically where TM20's transverse E-field keeps one sign (between its two interior
+    nodes), avoiding the overlap cancellation that normally kills a TM00->TM02/TM20 match in a
+    plain ridge (see PLAN.md: "No TM02/TM20 SH partner phase-matches anywhere in 215-235 nm" for
+    `ridge` -- this family exists to re-attempt that in the project's actual UV band, not to
+    reproduce the paper's telecom demo).
+
+    UNVERIFIED (check with em.plot(component='Index') once): the paper describes fabrication
+    narratively (conformal SiNx deposition, RIE side-core etch, CMP planarization), not as a
+    simple target cross-section. This models the simplest mode-solver-natural reading of it: an
+    AlN trapezoid sitting on the substrate, embedded in a SiNx rectangle of width `sin_width` x
+    height `sin_height` that also sits on the substrate (so SiNx occupies every point inside that
+    bounding box NOT already AlN -- beside AND above the core), then SiO2 outside/above. Confirm
+    this matches the paper's intent (and adjust `_masks`/`build` if not) before trusting results.
+
+    Params (nm / deg), all but the materials/chi2 keys required (no natural default for a new
+    engineered structure -- the paper's own telecom-scale values are a starting point, not
+    necessarily right for this project's UV band): h_core, w_core (AlN trapezoid bottom width),
+    sidewall_angle=16.5 (~paper's implied angle from its reported top/bottom/height), sin_width,
+    sin_height (SiNx shell outer bounding box -- must be >= h_core/w_core respectively).
+    shell_material: an EMode database name, or set shell_eq (REAL-only -- see `Loaded`'s
+    strip_eq/strip_loss_eq docstring for why) + shell_loss_eq (complex, Python-only) for a custom
+    lossy material the same way. shell_chi2: key into d_tensors_pm if the shell is nonlinear,
+    else None (SiNx is amorphous/centrosymmetric -- chi(2) = 0 is the physically-expected default,
+    matching the paper, which uses only AlN's d33).
+    """
+    family = 'hybrid'
+    defaults = {'sidewall_angle': 16.5, 'shell_material': 'SiNx', 'shell_eq': None,
+                'shell_loss_eq': None, 'shell_chi2': None,
+                'substrate_height': 1000.0, 'topclad_height': 800.0,
+                'substrate_material': 'Al2O3', 'topclad_material': 'SiO2',
+                'core_eq_o': AlN_EQ_O, 'core_eq_e': AlN_EQ_E, 'core_chi2': 'AlN'}
+
+    def __init__(self, **params):
+        self.params = {**self.defaults, **params}
+        for k in ('h_core', 'w_core', 'sin_width', 'sin_height'):
+            if k not in self.params:
+                raise ValueError(f"hybrid needs {k}")
+        if self.params['sin_width'] < self.params['w_core'] or self.params['sin_height'] < self.params['h_core']:
+            raise ValueError("hybrid: sin_width/sin_height must be >= w_core/h_core (the SiNx "
+                             "shell has to be at least as large as the AlN core it contains)")
+
+    @property
+    def symmetric_x(self):
+        return True  # both the AlN core and the SiNx shell are x-centered rectangles/trapezoids
+
+    @property
+    def window_width(self):
+        return max(2000.0, self.params['sin_width'] + 1600.0)
+
+    @property
+    def scatter_shapes(self):
+        return ['core', 'shell']
+
+    def _shell_material_name(self):
+        return 'custom_shell' if self.params['shell_eq'] else self.params['shell_material']
+
+    def build(self, em, roughness_rms=(0.0, 0.0), correlation_length=(0.0, 0.0)):
+        p = self.params
+        aniso = f"[{p['core_eq_o']},{p['core_eq_e']},{p['core_eq_o']}]"
+        em.add_material(name='custom_AlN', refractive_index_equation=aniso, wavelength_unit='um')
+        if p['shell_eq']:
+            em.add_material(name='custom_shell', refractive_index_equation=p['shell_eq'],
+                            wavelength_unit='um')
+        em.settings(window_width=self.window_width, window_height=p['sin_height'] + 2000.0,
+                    boundary_condition='0A')
+        em.shape(name='Substrate', material=p['substrate_material'], height=p['substrate_height'])
+        rough = ({'roughness_rms': list(roughness_rms), 'correlation_length': list(correlation_length)}
+                 if any(roughness_rms) else {})
+        # shell: a rectangular block (mask = width, no etch/taper -> vertical walls)
+        em.shape(name='shell', material=self._shell_material_name(), height=p['sin_height'],
+                 mask=p['sin_width'], **rough)
+        # core: drawn after the shell, so it takes priority in their overlapping footprint
+        # (same "later shape wins" convention already relied on by Loaded's film-then-strip)
+        em.shape(name='core', material='custom_AlN', height=p['h_core'], mask=p['w_core'],
+                 sidewall_angle=p['sidewall_angle'], **rough)
+        em.shape(name='TopClad', material=p['topclad_material'], height=p['topclad_height'],
+                 shape_type='conformal')
+
+    def _masks(self, x, y):
+        p = self.params
+        xx, yy = np.meshgrid(np.asarray(x, float), np.asarray(y, float))
+        y_sub = p['substrate_height']
+        shell_box = (yy >= y_sub) & (yy <= y_sub + p['sin_height']) & (np.abs(xx) <= p['sin_width'] / 2)
+        core = _trapezoid(xx, yy, y_sub, p['h_core'], p['w_core'], p['sidewall_angle'])
+        shell = shell_box & ~core
+        return core, shell
+
+    def core_mask(self, x, y):
+        """The AlN core (the chi(2) reference region)."""
+        return self._masks(x, y)[0]
+
+    def region_masks(self, x, y):
+        """{name: (mask, material_label)} tiling the whole cross-section -- for plotting (e.g.
+        plot_geometry.py), no EMode needed."""
+        p = self.params
+        xx, yy = np.meshgrid(np.asarray(x, float), np.asarray(y, float))
+        core, shell = self._masks(x, y)
+        substrate = (yy < p['substrate_height']) & ~core & ~shell
+        topclad = (yy >= p['substrate_height']) & ~core & ~shell
+        return {'Substrate': (substrate, p['substrate_material']),
+                'core': (core, 'AlN'),
+                'shell': (shell, self._shell_material_name()),
+                'TopClad': (topclad, p['topclad_material'])}
+
+    def lossy_mask(self, x, y):
+        """The shell mask, for confinement-weighted bulk absorption -- see `Loaded.lossy_mask`'s
+        docstring for why this is a post-solve perturbation (survey.bulk_absorption_loss), not an
+        EMode re-solve. None if shell_loss_eq isn't set."""
+        return self._masks(x, y)[1] if self.params['shell_loss_eq'] else None
+
+    def lossy_bulk_loss_dB_per_m(self, wavelength_nm):
+        p = self.params
+        if not p['shell_loss_eq']:
+            return 0.0
+        k = eval_complex_index_equation(p['shell_loss_eq'], wavelength_nm).imag
+        return material_loss_dB_per_m(k, wavelength_nm)
+
+    def chi2_map(self, x, y, d_tensors_pm):
+        core, shell = self._masks(x, y)
+        out = {k: np.zeros(core.shape) for k in ('d33', 'd31', 'd15')}
+        for mask, key in ((core, self.params['core_chi2']), (shell, self.params['shell_chi2'])):
+            if key:
+                t = d_tensors_pm[key]
+                for k, v in (('d33', t['d33']), ('d31', t['d31']), ('d15', t.get('d15', t['d31']))):
+                    out[k] = out[k] + mask * v * 1e-12
+        return out
+
+    def _shell_n(self, em, wavelength_nm):
+        if self.params['shell_eq']:
+            return eval_index_equation(self.params['shell_eq'], wavelength_nm)
+        return _scalar_index(em.refractive_index(material=self.params['shell_material'],
+                                                 wavelength=wavelength_nm))
+
+    def cerenkov_regions(self, em, wavelength_sh_nm):
+        p = self.params
+        out = []
+        for name, mat in (('substrate', p['substrate_material']), ('topclad', p['topclad_material'])):
+            n = _scalar_index(em.refractive_index(material=mat, wavelength=wavelength_sh_nm))
+            out.append({'name': f"{name}:{mat}", 'n': n, 'extent': 'bulk'})
+        # the shell is finite (bounded by sin_width/sin_height, not laterally extended like
+        # Loaded's unetched AlN slab), so it doesn't get its own bulk-radiation entry here.
+        return out
+
+    def eps_fn(self, wavelength_sh_nm, n_regions):
+        p = self.params
+        n_o = eval_index_equation(p['core_eq_o'], wavelength_sh_nm)
+        n_e = eval_index_equation(p['core_eq_e'], wavelength_sh_nm)
+        core_eps = {'Ex': n_o ** 2, 'Ey': n_e ** 2, 'Ez': n_o ** 2}
+        n_shell = n_regions['shell']
+
+        def f(X, Y, comp):
+            core, shell = self._masks(X[0, :], Y[:, 0])
+            sub = Y < p['substrate_height']
+            return np.where(core, core_eps[comp], np.where(shell, n_shell ** 2, np.where(
+                sub, n_regions['substrate'] ** 2, n_regions['topclad'] ** 2))).astype(complex)
+        return f
+
+    def d_fn(self, d_tensors_pm):
+        def f(X, Y):
+            return self.chi2_map(X[0, :], Y[:, 0], d_tensors_pm)
+        return f
+
+    def bbox(self):
+        p = self.params
+        return (-p['sin_width'] / 2, p['sin_width'] / 2, p['substrate_height'],
+                p['substrate_height'] + p['sin_height'])
+
+    def export_regions(self, em, wavelength_sh_nm):
+        """Indices stored with pump exports for the Cerenkov solve."""
+        return {'shell': self._shell_n(em, wavelength_sh_nm)}
+
+    def describe(self):
+        p = self.params
+        return (f"hybrid h={p['h_core']:g} w={p['w_core']:g} "
+                f"{p['shell_material'] if not p['shell_eq'] else 'custom'} "
+                f"sin_w={p['sin_width']:g} sin_h={p['sin_height']:g}")
+
+
+FAMILIES = {'ridge': Ridge, 'loaded': Loaded, 'hybrid': Hybrid}
 
 
 def make_geometry(family, params):
