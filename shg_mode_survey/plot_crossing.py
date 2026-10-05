@@ -17,6 +17,7 @@ import pandas as pd  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import geometry as geo  # noqa: E402
+from plot_utils import savefig_retry  # noqa: E402
 
 
 def plot_one(row, out_path):
@@ -57,7 +58,7 @@ def plot_one(row, out_path):
                  f"{row['wavelength_sh']:.2f} nm   NCE {row['eta_pct_per_W_cm2']:.3g} %/W/cm^2   "
                  f"shape overlap {row['overlap_shape']:.4f}", fontsize=10)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=110)
+    savefig_retry(fig, out_path, dpi=110)
     plt.close(fig)
 
 

@@ -19,6 +19,7 @@ import pandas as pd  # noqa: E402
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import geometry as geo  # noqa: E402
+from plot_utils import savefig_retry  # noqa: E402
 
 # Material -> color, fixed assignment (dataviz skill default categorical palette, slots chosen to
 # keep spatially-adjacent layers (Substrate/film-or-core/strip/TopClad) off the one flagged
@@ -54,7 +55,7 @@ def plot_one(geom, title, out_path):
     for s in ('top', 'right'):
         ax.spines[s].set_visible(False)
     fig.tight_layout()
-    fig.savefig(out_path, dpi=130)
+    savefig_retry(fig, out_path, dpi=130)
     plt.close(fig)
 
 
