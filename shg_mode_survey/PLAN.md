@@ -7,8 +7,13 @@ a post-solve perturbation after EMode-side approaches proved to be dead ends) ar
 First full `loaded` sweep (`loaded_sweep1`, TiO2 strip) ran overnight: much higher lossless NCE
 than `ridge`, but loss-limited peak efficiency collapses ~40,000x below `ridge`'s best once real
 TiO2 absorption is included -- TiO2 looks like the wrong strip material, not just a materials-data
-gap (see "Implementation status & findings" at the end, 2026-10-04/05 entries). Builds on
-`loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
+gap. User review of the field plots then caught a second issue: most of that sweep's top-NCE
+crossings (81% of refined, 100% in `loaded_smoke`) turned out to be simulation-window artifacts
+(box modes mimicking confined ones), not real -- now filtered out of the ranked results
+(`shg_physics.lateral_edge_ratio`, `summarize_run.py`), but the deeper fix (refinement is wasting
+most of its budget on exactly these) is still an open decision (see "Implementation status &
+findings" at the end, 2026-10-04/05 entries, and "Open items"). Builds on `loss_vs_dimensions/`
+and borrows from `phase_matching_pipeline/`.
 
 ## Goal
 
@@ -259,6 +264,13 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   strip for a nonlinear, lower-loss material (ScAlN -- Bäumler fit already done, needs
   `strip_chi2`/`d_tensors_pm` wiring and a `strip_eq`/`strip_loss_eq` built the same way as TiO2's)
   instead of (or combined with) iterating on TiO2 geometry parameters.
+- [ ] **Refine-selection is spending most of its budget on window/box-mode artifacts, not just
+  reporting them** -- see "Window/box-mode artifacts" findings below. 81% of `loaded_sweep1`'s
+  refined crossings (100% of `loaded_smoke`'s) are window-limited, meaning `refine_top_n`'s
+  screened-NCE ranking is being systematically gamed by exactly the crossings that turn out not to
+  be real. Needs a decision between widening the simulation window vs. screen-time filtering
+  (both described there) before the next `loaded`-family sweep, or results will keep needing this
+  same after-the-fact correction.
 
 ## References
 
@@ -431,6 +443,14 @@ constraint for Step 2, not just a materials-data gap.
 
 ### First full `loaded` sweep with real TiO2 loss (`loaded_sweep1`, 2026-10-04/05 overnight)
 
+**Correction (2026-10-05, see the "Window/box-mode artifacts" entry below): the NCE=293 %/W/cm^2
+"best crossing" cited in this section is a simulation-window artifact, not a real mode** -- the
+real best is TM00->TM05? at 159 %/W/cm^2 (h_s=150/w_s=1000). The peak-efficiency numbers below are
+only mildly affected (the peak-efficiency #1 row survives the filter essentially unchanged) --
+it's specifically the NCE ranking and the "which crossing is best" headline that were wrong. Left
+as originally written below for the history; `runs/loaded_sweep1/summary/` now reflects the
+corrected numbers.
+
 Ran the 8-geometry sweep in `survey_config_loaded.py` (unetched AlN film, TiO2 strip; t_film in
 {354, 600}, h_s in {70, 150}, w_s in {500, 1000} nm) with the bulk-loss wiring above. 0 failures,
 80 min total, 2399 guided crossings (64 refined, 8 per geometry). `summarize_run.py` updated to
@@ -443,7 +463,8 @@ scattering + interface absorption" for pump / "native scattering only" for SH.
   refined crossings, vs. ridge's best of ~15 %/W/cm^2 (`trial_grid`). The h_s=150 nm geometries in
   particular reach NCE > 100 %/W/cm^2 repeatedly (TM00->TM123? at h_s=150/w_s=500 hits 293
   %/W/cm^2) -- the strip genuinely does pull in strongly-overlapping, low-order-ish SH modes the
-  way the design intends.
+  way the design intends. **[corrected below: TM00->TM123? is a window artifact; the real ceiling
+  from this sweep is ~159 %/W/cm^2, still dramatically above ridge]**
 - **But loss-limited peak efficiency collapses once real TiO2 absorption is included**: 2.9e-11 to
   2.8e-6 %/W across all 64 refined crossings -- the best case in the whole sweep (TM10->TM26 at
   234.9 nm, t=600/h_s=150/w_s=500, NCE 43.6 %/W/cm^2) is ~40,000x worse than ridge's best committed
@@ -466,7 +487,64 @@ scattering + interface absorption" for pump / "native scattering only" for SH.
   warning (21-63 group-steps affected, worst for h_s=150 cases) -- `num_sh_modes=30` may be
   undercounting the true crossing set for this family, especially the higher-NCE h_s=150
   geometries. Re-running with a larger `num_sh_modes` would be worth it before treating "293
-  %/W/cm^2 is the best NCE in this family" as final.
+  %/W/cm^2 is the best NCE in this family" as final. (Moot for that specific number now --
+  see below -- but the undercounting concern itself stands.)
+
+### Window/box-mode artifacts in `loaded`-family results (2026-10-05)
+
+User review of `loaded_sweep1`'s field plots caught it: several high-NCE refined crossings (the
+reported #1, TM00->TM123? at 293 %/W/cm^2, among them) showed a SH field with a regular, roughly
+uniform-amplitude lattice of lobes spanning the *entire* simulation window at constant spacing,
+not decaying toward the walls -- a real local field enhancement near the strip riding on top of
+an undecayed background, rather than a genuinely bound mode. Confirmed by contrast against a
+clean case (TM00->TM05, NCE 154, smooth envelope decaying to ~0 well inside the window) -- see
+`runs/loaded_sweep1/plots/`.
+
+Root cause: `sh_scan()`'s window has reflecting (non-PML) walls for the guided-mode search (PML
+is reserved for the driven Cerenkov solve, see "Implementation notes/risks"). In addition to real
+bound modes, this quantizes a quasi-continuum of **box modes** of the surrounding cladding/
+substrate -- states that exist only because the hard walls force a standing wave, not because
+anything in the actual (physically much wider, or infinite) device would confine them there. Nowhere
+in the pipeline previously checked for this; NCE and overlap_shape are computed from the field as
+given and don't care whether that field is physically confined or an artifact of the box.
+
+Fix: `shg_physics.lateral_edge_ratio(f, x)` -- the lateral intensity profile's value at the
+window's outermost ~2.5%, relative to its own peak. Near 0 for a real bound mode (quasi-exponential
+decay before reaching the wall); stays well above 0 for a box mode (undecaying oscillation all the
+way out). Validated against the sweep's own data: a clean cluster (TM03/04/05 family) sits at
+0.0005-0.016, a contaminated cluster at 0.04-0.83, with the visually-confirmed TM123? case (0.038)
+right at that boundary. Computed per refined crossing (needs the full field export, so **not
+decidable for screened-only crossings**) and stored as `sh_edge_ratio` / `pump_edge_ratio` (pump
+is uniformly clean, ~1e-6 to 1e-14, across every crossing checked -- expected, since pump
+candidates are the lowest-order real modes by construction, not a broad SH-style index-targeted
+search). `survey.refine_crossing()` now computes both for every future run;
+`reprocess_run.py` backfills them into existing runs from already-saved exports (no EMode needed)
+-- ran for `loaded_smoke` and `loaded_sweep1`.
+
+`summarize_run.py` now excludes refined crossings with `sh_edge_ratio` > `MAX_SH_EDGE_RATIO`
+(0.02, tunable at the top of the file) from every ranking table, and states the exclusion count
+plus how many screened-only crossings in that run couldn't be checked. Corrected headline numbers:
+`loaded_sweep1`'s real best NCE is **159 %/W/cm^2** (TM00->TM05? at h_s=150/w_s=1000), not 293;
+peak efficiency's #1 row is unaffected (TM00->TM05, 8.5e-7 %/W/cm^2, already physically clean).
+
+**Bigger finding: refinement is spending most of its budget on these artifacts, not just reporting
+them.** `refine_top_n` picks the top-N crossings *by screened NCE* for full refinement -- exactly
+the number box modes inflate. Of `loaded_sweep1`'s 64 refined crossings, **52 (81%) turned out to
+be window-limited**; for `loaded_smoke` specifically, **all 8 of 8** were -- that single-geometry
+smoke run currently has zero verified-real refined crossings, only an unverified screened one
+(NCE 0.68) as the best trustworthy entry. This means real candidates are plausibly being crowded
+out of the refine budget entirely, not just outranked in the final report. Two non-exclusive
+fixes, not yet implemented, needing a decision on which to pursue first:
+1. **Widen the simulation window.** Box modes are an artifact of a finite box; a wider window
+   pushes the spurious quasi-continuum's index spacing tighter and reduces how often one
+   coincidentally sits right at a pump's crossing index with a locally-enhanced overlap. Simplest,
+   but costs more per solve (bigger mesh) and doesn't eliminate the issue, just thins it out.
+2. **Screen-time filtering.** `lateral_edge_ratio` only needs a field + its x grid -- in principle
+   computable on `sh_scan()`'s already-in-memory downsampled (`small()`) tracking fields, before
+   deciding what to refine, so `refine_top_n` could skip (or deprioritize) obviously box-mode
+   candidates and spend the budget on real ones instead. Not yet tried; `small()` only keeps
+   `Ex`/`Ey` (drops `Ez`) at half resolution, so the ratio would need validating at that reduced
+   fidelity before trusting it to drive selection.
 
 `cerenkov_run.py loaded_sweep1 --all` (all 40 pumps across the 8 geometries -- notably slower per
 pump than ridge's ~40s, 4-7 min each here, worth a look if this module gets used routinely for

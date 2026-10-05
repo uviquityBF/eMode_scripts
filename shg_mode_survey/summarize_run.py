@@ -28,6 +28,15 @@ PUMP_COLORS = {'TM00': '#2a78d6', 'TM10': '#eb6834', 'TM01': '#1baf7a', 'TE00': 
                'TE01': '#e87ba4', 'TM20': '#008300', 'TE10': '#4a3aa7', 'TM02': '#e34948'}
 OTHER = '#898781'
 GRID = '#e1e0d9'
+
+# A refined crossing's sh_edge_ratio above this is flagged as window/box-mode-limited: the SH
+# "mode" is quantized mainly by the simulation window's hard walls, not real lateral confinement
+# (see shg_physics.lateral_edge_ratio's docstring) -- NCE/overlap alone don't catch this, since a
+# real local field enhancement near a physical feature can ride on top of an undecayed background.
+# Found 2026-10-05 reviewing loaded_sweep1: its reported #1 crossing (NCE 293 %/W/cm^2) was this.
+# Screened-only crossings have no field export so can't be checked -- they pass through unflagged
+# (NaN), not verified clean; see the caveat summarize_run.py prints when any exist in a top table.
+MAX_SH_EDGE_RATIO = 0.02
 INK = '#0b0b0b'
 MUTED = '#898781'
 
@@ -133,17 +142,30 @@ def main(run_name):
            'A_eff_sh_um2': '{:.3f}', 'L_opt_mm': '{:.2f}', 'peak_efficiency_pct_per_W': '{:.3g}',
            'sh_te_fraction': '{:.2f}', 'pump_scattering_dB_per_m': '{:.0f}',
            'sh_scattering_dB_per_m': '{:.0f}', 'pump_absorption_dB_per_m': '{:.3g}',
-           'sh_absorption_dB_per_m': '{:.3g}'}
+           'sh_absorption_dB_per_m': '{:.3g}', 'sh_edge_ratio': '{:.3g}'}
     ridge_only = bool((g['family'] == 'ridge').all())  # h/w columns + vs-width plots
     cols = (['h', 'w'] if ridge_only else ['geom']) + ['pump_label', 'sh_label', 'sh_te_fraction', 'wavelength_sh', 'eta_pct_per_W_cm2',
-            'overlap_shape', 'A_shg_um2', 'A_eff_pump_um2', 'A_eff_sh_um2', 'status']
-    top_nce = c.sort_values('eta_pct_per_W_cm2', ascending=False).head(25)
+            'overlap_shape', 'A_shg_um2', 'A_eff_pump_um2', 'A_eff_sh_um2'] + \
+           (['sh_edge_ratio'] if 'sh_edge_ratio' in c else []) + ['status']
+
+    # Window/box-mode flag: only decidable for refined rows (they have a field export); screened
+    # rows pass through un-vetted (counted below, not silently dropped).
+    if 'sh_edge_ratio' in c:
+        c['sh_window_limited'] = c['sh_edge_ratio'] > MAX_SH_EDGE_RATIO
+        trustworthy = c[~c['sh_window_limited'].fillna(False)]
+        n_unverified_screened = int(((c['status'] == 'screened')).sum())
+    else:  # older run, reprocess_run.py not yet run against it -- no filtering possible
+        trustworthy = c
+        n_unverified_screened = 0
+
+    top_nce = trustworthy.sort_values('eta_pct_per_W_cm2', ascending=False).head(25)
     ref = c[c['status'] == 'refined']
-    top_peak = ref.sort_values('peak_efficiency_pct_per_W', ascending=False).head(25)
+    ref_trustworthy = trustworthy[trustworthy['status'] == 'refined']
+    top_peak = ref_trustworthy.sort_values('peak_efficiency_pct_per_W', ascending=False).head(25)
     top_nce.to_csv(os.path.join(out, 'top_by_nce.csv'), index=False)
     top_peak.to_csv(os.path.join(out, 'top_by_peak.csv'), index=False)
-    best = c.loc[c.groupby('fingerprint')['eta_pct_per_W_cm2'].idxmax()].sort_values(['h', 'w'] if ridge_only else 'geom')
-    tm = c[(c['sh_te_fraction'] < 0.5) & c['pump_label'].str.startswith('TM')]
+    best = trustworthy.loc[trustworthy.groupby('fingerprint')['eta_pct_per_W_cm2'].idxmax()].sort_values(['h', 'w'] if ridge_only else 'geom')
+    tm = trustworthy[(trustworthy['sh_te_fraction'] < 0.5) & trustworthy['pump_label'].str.startswith('TM')]
     pair_best = (tm.sort_values('eta_pct_per_W_cm2', ascending=False)
                  .groupby('pair').head(1).head(20))
     with open(os.path.join(out, 'summary.md'), 'w', encoding='utf-8') as f:
@@ -157,10 +179,25 @@ def main(run_name):
                 "survey.bulk_absorption_loss; 0 wherever a geometry has no lossy region defined). "
                 "overlap_shape is 0..1; A_shg is the plane-wave-equivalent interaction area for "
                 "AlN d33.\n\n")
+        if 'sh_edge_ratio' in c:
+            n_flagged = int(c['sh_window_limited'].fillna(False).sum())
+            f.write(f"**Window/box-mode filter**: {n_flagged} refined crossing(s) with "
+                    f"`sh_edge_ratio` > {MAX_SH_EDGE_RATIO} excluded from every table below -- the "
+                    "SH field hasn't decayed by the simulation window's edge, meaning it's at least "
+                    "partly an artifact of the window's hard walls rather than real lateral "
+                    "confinement (see `shg_physics.lateral_edge_ratio`). Full data, flag included, "
+                    "stays in `crossings.csv`.")
+            if n_unverified_screened:
+                f.write(f" **{n_unverified_screened} screened-only crossing(s) have no field export "
+                        "and so could not be checked** -- they pass through unflagged, not verified "
+                        "clean; re-run with a higher `refine_top_n` (or refine them individually) "
+                        "before trusting a screened-only entry in these tables.")
+            f.write("\n\n")
         f.write("## Top 25 by NCE\n\n" + md_table(top_nce, cols, fmt) + "\n\n")
         f.write("## Top 25 by loss-limited peak efficiency (refined)\n\n" +
                 md_table(top_peak, cols[:cols.index('wavelength_sh') + 1] +
-                         ['eta_pct_per_W_cm2', 'pump_scattering_dB_per_m', 'sh_scattering_dB_per_m',
+                         ['eta_pct_per_W_cm2'] + (['sh_edge_ratio'] if 'sh_edge_ratio' in c else []) +
+                         ['pump_scattering_dB_per_m', 'sh_scattering_dB_per_m',
                           'pump_absorption_dB_per_m', 'sh_absorption_dB_per_m',
                           'L_opt_mm', 'peak_efficiency_pct_per_W'], fmt) + "\n\n")
         f.write("## Best TM->TM pairs (best instance of each pump->SH pair)\n\n" +

@@ -68,6 +68,19 @@ def test_bulk_loss():
     print(f"bulk loss OK: n+ik=({n}+{k}j) @ {lam_nm} nm -> {got:.3e} dB/m (TiO2-at-SH scale)")
 
 
+def test_lateral_edge_ratio():
+    x = np.linspace(-1200, 1200, 401)
+    y = np.linspace(-200, 200, 41)
+    X, Y = np.meshgrid(x, y)
+    bound = {'Ey': np.exp(-(X / 150) ** 2) * np.ones_like(Y), 'Ex': np.zeros_like(X), 'Ez': np.zeros_like(X)}
+    box = {'Ey': np.cos(2 * np.pi * X / 80) * np.ones_like(Y), 'Ex': np.zeros_like(X), 'Ez': np.zeros_like(X)}
+    r_bound = sp.lateral_edge_ratio(bound, x)
+    r_box = sp.lateral_edge_ratio(box, x)
+    assert r_bound < 1e-6, r_bound       # Gaussian: ~0 at the window edge
+    assert r_box > 0.9, r_box            # undecaying oscillation: still near its own envelope at the edge
+    print(f"lateral_edge_ratio OK: bound mode {r_bound:.2e}, box-mode-like {r_box:.3f}")
+
+
 def test_overlap_terms():
     rng = np.random.default_rng(0)
     shp = (40, 50)
@@ -87,5 +100,6 @@ if __name__ == '__main__':
     test_symmetry_forbidden()
     test_loss_limited_length()
     test_bulk_loss()
+    test_lateral_edge_ratio()
     test_overlap_terms()
     print('all passed')

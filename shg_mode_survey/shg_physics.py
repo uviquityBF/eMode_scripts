@@ -106,6 +106,31 @@ def power_fraction_in(f, mask):
     return float(np.sum(sz * mask) / tot) if tot else float('nan')
 
 
+def lateral_edge_ratio(f, x, edge_frac=0.025):
+    """How much of a mode's lateral intensity profile (|E|^2, summed over y) is still present
+    at the outermost `edge_frac` of the simulation window on either side, relative to the
+    profile's peak. Near 0 for a mode actually bound by index contrast -- it decays
+    (quasi-)exponentially before reaching the wall. A *window/box mode* -- quantized by the
+    finite, hard-walled simulation domain rather than real lateral confinement -- keeps
+    oscillating at roughly its own envelope all the way to the wall, so this stays well above 0;
+    such modes can still show a real-looking, even strong, local field enhancement near an actual
+    physical feature (so NCE/overlap alone don't catch them) riding on top of that un-decayed
+    background. Caught 2026-10-05 reviewing `loaded_sweep1`: its reported best crossing
+    (TM00->TM123?, NCE 293 %/W/cm^2) turned out to be exactly this -- see PLAN.md.
+
+    Always computed over the full window actually solved (`x` from the field export), so it's
+    reporting on the specific geometry's own window, not a fixed physical length.
+    """
+    I = sum(np.abs(f[k]) ** 2 for k in ('Ex', 'Ey', 'Ez') if k in f)
+    profile = np.sum(I, axis=0)
+    peak = profile.max()
+    if peak <= 0:
+        return float('nan')
+    profile = profile / peak
+    n_edge = max(3, int(len(x) * edge_frac))
+    return float(max(profile[:n_edge].max(), profile[-n_edge:].max()))
+
+
 def overlap_shape_factor(Es, Ep, d, dA):
     """Dimensionless 0..1: |O| / sqrt(int|E_SH|^2 dA * int|d:E_pE_p|^2 dA), integrals over the
     chi(2) region only (where any d != 0). 1 means the SH mode's field inside the nonlinear

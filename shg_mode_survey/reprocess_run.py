@@ -42,6 +42,8 @@ def main(run_name, config_module='survey_config'):
             c.at[i, k] = v
         c.at[i, 'pump_power_in_core'] = sp.power_fraction_in(fp, mask)
         c.at[i, 'sh_power_in_core'] = sp.power_fraction_in(fs, mask)
+        c.at[i, 'pump_edge_ratio'] = sp.lateral_edge_ratio(fp, x)
+        c.at[i, 'sh_edge_ratio'] = sp.lateral_edge_ratio(fs, x)
         n += 1
     c.to_csv(path, index=False)
     print(f"{run_name}: reprocessed {n} refined crossings")

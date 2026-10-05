@@ -485,6 +485,8 @@ def refine_crossing(em, geom, cfg, c, export_path):
         **sp.overlap_terms(fs, fp, d, dA, lam),
         'pump_power_in_core': sp.power_fraction_in(pm[ip], mask),
         'sh_power_in_core': sp.power_fraction_in(sm[i_s], mask),
+        'pump_edge_ratio': sp.lateral_edge_ratio(pm[ip], x),
+        'sh_edge_ratio': sp.lateral_edge_ratio(sm[i_s], x),
     }
 
 
