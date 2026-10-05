@@ -275,8 +275,11 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
 ## Implementation status & findings (2026-10-03)
 
 Code: `survey.py` (Step 1 driver), `shg_physics.py` (figures of merit), `geometry.py` (family
-interface, `ridge`), `cerenkov_fdfd.py` + `cerenkov_run.py` (Step 1b), `summarize_run.py`,
-`plot_crossing.py`; tests `test_shg_physics.py`, `test_cerenkov_fdfd.py`. How to run: README.md.
+interface, `ridge`, later `loaded`), `cerenkov_fdfd.py` + `cerenkov_run.py` (Step 1b),
+`summarize_run.py`, `plot_crossing.py`, `plot_geometry.py`; tests `test_shg_physics.py`,
+`test_cerenkov_fdfd.py`, `test_geometry.py`, `test_plot_crossing.py`. How to run: README.md,
+`SHG_Survey_Runner.ipynb`, or the Field Guide artifact (theory + architecture + operating guide
+in one place — ask Claude for the link).
 
 EMode facts established while building it (EMode 1.0.4):
 - `boundary_condition='0A'` (antisymmetric Ex on the west wall) returns exactly the x-even
