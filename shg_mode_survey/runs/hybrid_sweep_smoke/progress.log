@@ -1,0 +1,7 @@
+[22:13:28] run 'hybrid_sweep_smoke' (survey_config_hybrid_sweep_smoke): 1 geometries, 0 already done, 1 to do
+[22:13:28] [1/1] hybrid h=400 w=400 custom sin_w=1100 sin_h=700  (bcf44707531b)
+[22:14:51]   pumps (60s): TM00[A] 2.0642, TE00[S] 2.0322, TM01[A] 2.0254, TM10[S] 2.0017, TE10[A] 2.0002
+[22:23:15]   SH scan (504s): 148 SH tracks, 518 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[22:25:49]   refine (154s): 8 refined, 510 screened-only (0 of those skipped for refinement as window-limited)
+[22:25:50]   done in 742s; best: TM01->TM141 @ 226.77 nm, NCE 7.83 %/W/cm^2 (refined)
+[22:25:50]   elapsed 12.4 min, est. remaining 0.0 min

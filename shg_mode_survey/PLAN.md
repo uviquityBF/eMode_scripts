@@ -18,9 +18,12 @@ NCE is unchanged at 159 %/W/cm^2 (TM00->TM05?, h_s=150/w_s=1000), confirming the
 efficiency/coverage without changing the physics conclusion. `ridge`'s older committed results have
 since been re-verified clean against this check (0 window-limited across `trial_grid` +
 `wide_window`). A third family, `hybrid` (AlN core embedded in a SiNx shell, adapting Honda et al.
-2025's TM00->TM20 mechanism to this project's UV band), is now implemented and geometry-verified
-but not yet surveyed -- see "Implementation status & findings" at the end, 2026-10-05 entries, and
-"Open items". Builds on `loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
+2025's TM00->TM20 mechanism to this project's UV band), is now implemented, geometry-verified, and
+surveyed across 30 geometries (first pass + a targeted 24-geometry sin_width/w_core sweep): clean
+(0 window-limited across 14732 crossings), headline 25.2 %/W/cm^2 (TM01->TM81), but **the paper's
+own TM00->TM20 mechanism has not been found in this band after either sweep** -- see
+"Implementation status & findings" at the end, 2026-10-05/06 entries, and "Open items" for what
+that does and doesn't mean. Builds on `loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
 
 ## Goal
 
@@ -722,3 +725,41 @@ result (if it exists) needs a `sin_width` (and/or `sin_height`) sweep at fixed `
 explicitly searching for the shell extent where TM20 appears in the pump-mode list AND the AlN
 core's position avoids cancelling against TM20's sign flip -- not more guesses at the margin size.
 Deferred pending user direction on whether to pursue that targeted sweep.
+
+### Targeted `hybrid` sweep: `sin_width` decoupled from `w_core`, still no TM00->TM20 (2026-10-05/06)
+
+User asked to proceed with an extensive sweep. Built `survey_config_hybrid_sweep.py`: fixed
+h_core=400/sin_height=700 (the first pass's best NCE combo), independently scanned `w_core` in
+{200,300,400,500,600} nm x `sin_width` in {700,900,1100,1300,1500} nm (24 geometries, kept where
+`sin_width >= w_core + 200`) -- the whole point being to actually vary the core-to-shell width
+ratio, which the first pass's `sin_width = w_core + fixed_margin` construction never did. Also
+raised `num_sh_modes` 30->45 (every geometry in the first pass logged "SH n_eff window too narrow",
+worse for wider shells -- a real risk of the scan's per-step mode window missing whichever SH mode
+actually matters). Ran clean: all 24 `ok`, 0 failures, **0 window-limited among 12442 crossings**
+(max refined `sh_edge_ratio` ~4e-15) over ~4.9 hours (wall time climbs steeply with `sin_width`: a
+700 nm shell takes ~8-9 min/geometry, 1500 nm climbs to ~14 min -- more lateral modes to track).
+
+Headline across both `hybrid` sweeps combined (30 geometries, 14732 crossings total): **25.2
+%/W/cm^2**, TM01->TM81 @ 232.38 nm (h=400/w=400/sin_w=700/sin_h=700 -- the narrowest shell tried in
+the targeted sweep, notably *not* the widest). Still well below `ridge`'s 159 and `loaded`'s best.
+
+**The paper's TM00->TM20 mechanism was not found.** Checked directly: zero crossings anywhere in
+either sweep's combined dataset carry an exact `TM20` or `TM02` SH-mode label (confirmed via exact
+regex match, not substring -- an earlier pass of this check falsely "found" TM00->TM20 hits that
+turned out to be TM200/TM201/etc., i.e. m=20 not m=2, a much higher lateral order that just happens
+to share a text prefix). The shells here are wide enough to guide many lateral orders (labels up to
+~TM220 appear), so TM20 as a *mode* almost certainly exists at the SH wavelength in most of these
+geometries -- what's missing is a *phase-matching crossing* between TM20's n_eff(lambda) curve and
+any pump mode's, landing inside the narrow 215-235 nm window. That's a much more specific condition
+than mode existence, and PLAN.md already has precedent for it being hard to hit: `ridge`'s own
+trial_grid found "No TM02/TM20 SH partner phase-matches anywhere in 215-235 nm" despite a denser
+18-geometry grid. 30 hybrid geometries, spanning only the lateral dimensions (`w_core`/`sin_width`)
+at one fixed `h_core`/`sin_height`, may simply be too coarse/narrow a slice of the real design space
+to land that one specific crossing -- vertical dimensions were never varied at all this round, and
+they shift every mode's dispersion too.
+
+Not yet done, deferred pending user direction: a vertical-dimension sweep (`h_core`/`sin_height`)
+crossed with the lateral one would be the natural next step if the TM00->TM20 result specifically
+still matters; alternatively, treating `hybrid`'s current best (TM01->TM81, 25.2 %/W/cm^2, clean)
+as this family's answer and moving on is also defensible given 30 geometries of consistently modest,
+sub-`ridge` NCE regardless of which modes end up matching.
