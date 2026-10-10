@@ -763,3 +763,57 @@ crossed with the lateral one would be the natural next step if the TM00->TM20 re
 still matters; alternatively, treating `hybrid`'s current best (TM01->TM81, 25.2 %/W/cm^2, clean)
 as this family's answer and moving on is also defensible given 30 geometries of consistently modest,
 sub-`ridge` NCE regardless of which modes end up matching.
+
+### Sub-metric breakdown artifact (2026-10-06): loss is confinement-driven, overlap_shape isn't predictive
+
+Before committing to a vertical sweep, built an exploratory artifact ("Hybrid Loss Atlas") from
+`extract_subfigure_data.py` pulling apart the fields `refine_crossing()` already computes but
+`summarize_run.py` only ever collapses into `eta_pct_per_W_cm2`: `overlap_shape` (dimensionless
+0-1, integrated over the AlN region only, independent of loss or the d-tensor's absolute scale),
+and the SH-side/pump-side scattering and absorption split. Across all 240 refined crossings
+(hybrid1 + hybrid_sweep1):
+
+- **SH-side (UV, 215-235 nm) absorption beats scattering by ~1000x median** -- and since AlN is
+  modeled as lossless here (its own UV k is the still-open deferred item), 100% of that absorption
+  is SiNx shell bulk loss, confirmed via `bulk_absorption_loss()`'s literal `Gamma_shell *
+  alpha_SiNx(lambda)` (first-order perturbation: modal loss = the mode's own power fraction in the
+  lossy region times that region's bulk material loss -- see [survey.py:167-182](survey.py#L167-L182)). Narrow
+  AlN cores (w_core=200) have 2-3x *worse* SH absorption than wide ones (w_core=600) because less
+  of the SH mode's power ever reaches the (lossless) AlN and more stays in the (lossy) SiNx.
+- **Pump-side (true blue, 430-470 nm) loss is ~8300x smaller** than SH-side loss at the same
+  crossing, and absorption only beats scattering by ~8x there (not ~1000x) -- SiNx's own measured k
+  rounds to 0 in the raw literature data at these wavelengths, so pump absorption is mostly the
+  fixed AlN growth-interface baseline (dislocations/impurities), not shell confinement, though the
+  same weak "more power in core helps" trend still shows up via a small residual SiNx tail (likely
+  a fit artifact, same caveat already flagged for TiO2's pump-band tail).
+- **`overlap_shape` barely predicts final `eta`** (r ~ 0.09 across all 240 crossings): the
+  narrowest cores reach the *highest* shape overlap (up to 0.81, vs ~0.05-0.10 for wide cores)
+  despite having some of the *lowest* final NCE, because overlap_shape only measures field
+  proportionality inside AlN, blind to how much power actually gets there or the overlap's
+  absolute magnitude. None of the four w_core x sin_width geometry maps (best overlap_shape, mean
+  SH power in core, lowest SH loss, best eta) peaks in the same place -- no single sub-metric picks
+  the eventual NCE winner.
+
+### Vertical-dimension sweep (`hybrid_vertical1`, 2026-10-09/10): new headline, still no TM00->TM20
+
+User confirmed: proceed with the vertical sweep (not a re-run of the lateral grid at one new
+thickness). Built `survey_config_hybrid_vertical.py`: lateral dims fixed at the lateral sweep's
+best combo (w_core=400, sin_width=700), `h_core` in {250,300,350,400,450} x `sin_height` in
+{500,650,800,950,1100}, kept where `sin_height >= h_core + 200` -- 22 geometries, same
+`num_sh_modes=45` as the lateral sweep. Ran clean: all 22 `ok` (one transient `PermissionError`,
+auto-retried per the known EMode-instability gotcha), **0 window-limited across 8814 crossings**
+(max refined `sh_edge_ratio` ~7e-14).
+
+**New headline: 35.2 %/W/cm^2** (TM01->TM81 @ 233.60 nm, h_core=300/sin_height=500 -- the
+*shortest* shell tried, sitting right at this sweep's own minimum-margin floor), beating the
+lateral sweep's 25.2. The top of the ranking is dominated by the smallest `sin_height` values
+(500, 650) almost regardless of `h_core`, suggesting the true optimum may sit at or below 500 nm --
+not explored yet, since 500 was this sweep's floor (`sin_height >= h_core + 200`), not a
+physically-motivated lower bound. **Still zero exact TM20/TM02 SH-mode labels** across the
+sweep's 8814 crossings (checked the same way as the lateral sweep, exact regex not substring).
+Combined across all three `hybrid` runs so far (52 geometries, 23546 crossings total): headline
+remains 35.2 %/W/cm^2, still clean, still no TM00->TM20 anywhere.
+
+Not yet done: a narrower `sin_height` sweep (e.g. below 500 nm) following up on the "smaller shell
+margin keeps winning" trend; re-running the sub-metric artifact against this run's data to see
+whether the same loss/overlap decoupling holds vertically.
