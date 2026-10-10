@@ -19,11 +19,15 @@ efficiency/coverage without changing the physics conclusion. `ridge`'s older com
 since been re-verified clean against this check (0 window-limited across `trial_grid` +
 `wide_window`). A third family, `hybrid` (AlN core embedded in a SiNx shell, adapting Honda et al.
 2025's TM00->TM20 mechanism to this project's UV band), is now implemented, geometry-verified, and
-surveyed across 30 geometries (first pass + a targeted 24-geometry sin_width/w_core sweep): clean
-(0 window-limited across 14732 crossings), headline 25.2 %/W/cm^2 (TM01->TM81), but **the paper's
-own TM00->TM20 mechanism has not been found in this band after either sweep** -- see
-"Implementation status & findings" at the end, 2026-10-05/06 entries, and "Open items" for what
-that does and doesn't mean. Builds on `loss_vs_dimensions/` and borrows from `phase_matching_pipeline/`.
+surveyed across 52 geometries total (three sweeps, 23546 crossings) -- **but a geometry-construction
+bug (`em.shape()`'s default `position` auto-stacks a new shape on top of the last one; `Hybrid.build()`
+never set it) meant the AlN core was never actually embedded in the SiNx shell in any of those 52
+geometries, just stacked on top of it.** Found and fixed 2026-10-10 (see "Implementation status &
+findings", same-day entry). Every `hybrid` number reported before that fix -- all three sweeps'
+headlines, the "no TM00->TM20 anywhere" finding, the sub-metric breakdown artifact -- describes a
+structure that was never the one intended, not the Honda et al. mechanism. Awaiting direction on
+re-running the sweep campaign under the corrected geometry. Builds on `loss_vs_dimensions/` and
+borrows from `phase_matching_pipeline/`.
 
 ## Goal
 
@@ -817,3 +821,52 @@ remains 35.2 %/W/cm^2, still clean, still no TM00->TM20 anywhere.
 Not yet done: a narrower `sin_height` sweep (e.g. below 500 nm) following up on the "smaller shell
 margin keeps winning" trend; re-running the sub-metric artifact against this run's data to see
 whether the same loss/overlap decoupling holds vertically.
+
+### CRITICAL: `hybrid`'s core was never actually embedded in the shell -- invalidates all 52 prior geometries (2026-10-10)
+
+Before starting the narrower-`sin_height` follow-up, re-examined the committed geometry-check
+render ([runs/geometry_check/hybrid_smoke_index.png](runs/geometry_check/hybrid_smoke_index.png))
+more carefully and found the AlN core was **not actually embedded inside the SiNx shell** in any
+of the three `hybrid` sweeps run so far (`hybrid1`, `hybrid_sweep1`, `hybrid_vertical1` -- 52
+geometries, 23546 crossings total). The render showed the core trapezoid sitting *on top of* the
+shell block (two tiers stacked vertically, a plain ridge-on-pedestal), not surrounded by shell on
+the sides and above as `_masks()` computes and the Honda et al. mechanism requires.
+
+Root cause: `em.shape()`'s `position` defaults to `(0, 'auto')`, where `'auto'` auto-stacks a new
+shape on top of whatever already occupies its mask footprint (real-fab-style sequential
+deposition) -- `Hybrid.build()`'s `core` shape() call never set `position` at all, so EMode
+silently stacked it on top of the already-drawn `shell` instead of placing it at the substrate
+baseline alongside/within the shell's footprint. Confirmed by comparing `em.plot(component=
+'Index')` against the Python-side `_masks()` (which was always correct -- the bug was purely in
+`build()`, same class of issue as the `etch_depth` bug found 2026-10-05, different parameter).
+
+Fix required a second round: setting `position=(0, substrate_height)` (assuming bottom-referenced,
+like the implicit stacking default) instead centered the core *on* `substrate_height`, straddling
+down into the substrate -- `position`'s y-value turns out to be **center-referenced**, not
+bottom-referenced. `position=(0, substrate_height + h_core/2)` is what actually lands the core's
+bottom edge at the substrate line, matching `_masks()` exactly (confirmed via the geometry-check
+render: core now sits bottom-flush with the shell's bottom, flanked on both sides and wrapped
+above by shell, up to `sin_height`). Fixed in `geometry.py`'s `Hybrid.build()`; no-EMode test
+suite re-run clean (these tests only cover `_masks()`, which was never wrong).
+
+**This means every `hybrid` result reported so far -- the 25.2 %/W/cm^2 and 35.2 %/W/cm^2
+headlines, the "no TM00->TM20 anywhere" finding across all three sweeps, and the sub-metric
+breakdown artifact's loss/overlap/confinement story -- was computed for a structure that was never
+the one intended.** The stacked (wrong) and embedded (correct) geometries are different
+waveguides with different dispersion; nothing above should be treated as a finding about the
+Honda et al. mechanism itself. Whether the *stacked* structure's own numbers are independently
+interesting is a separate, unasked question -- not pursued.
+
+One encouraging, NOT YET CONFIRMED signal: re-running the live mode check on the smoke geometry
+(h=300/w=400/sin_w=800/sin_h=600) with the corrected geometry shows **TM20 appearing among the
+first four computed modes** at the check's default wavelength (450 nm) -- it didn't appear at all
+in the equivalent check against the old, stacked geometry. This is just a mode existing at one
+wavelength, not a phase-matching crossing in the 215-235 nm SH window -- far short of confirming
+the mechanism -- but it's the first time TM20 has shown up at all in this family's results, which
+the stacked geometry apparently could never produce. Worth a fresh, full campaign to check
+properly rather than reading into one data point.
+
+Pending user direction on how to proceed: likely a full re-run of both the lateral and vertical
+sweeps (and the narrower-`sin_height` follow-up) under the corrected geometry, effectively
+restarting the `hybrid` family's sweep history from here. The three invalidated runs are left
+committed (as `hybrid1`, `hybrid_sweep1`, `hybrid_vertical1`) for the record, not deleted.

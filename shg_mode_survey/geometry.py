@@ -453,8 +453,20 @@ class Hybrid:
         em.shape(name='shell', material=self._shell_material_name(), height=p['sin_height'],
                  mask=p['sin_width'], etch_depth=p['sin_height'], sidewall_angle=0.0, **rough)
         # core: drawn after the shell, so it takes priority in their overlapping footprint
-        # (same "later shape wins" convention already relied on by Loaded's film-then-strip)
+        # (same "later shape wins" convention already relied on by Loaded's film-then-strip).
+        # position=(x, y) is REQUIRED and y is CENTER-referenced -- shape()'s default position is
+        # (0, 'auto'), which auto-stacks a shape on top of whatever's already there within its own
+        # mask width (real-fab-style sequential deposition); without it, 'core' silently stacked on
+        # TOP of the already-drawn 'shell' instead of embedding laterally within it. Confirmed
+        # 2026-10-10 via em.plot(component='Index') + a controlled position sweep: position=(0,
+        # substrate_height) (tried first, assuming bottom-referenced like the implicit stacking
+        # default) centered the core on substrate_height instead, straddling into the substrate;
+        # substrate_height + h_core/2 is what actually lands the core's bottom edge at
+        # substrate_height, matching _masks()'s convention and the Honda et al. mechanism (AlN
+        # surrounded by SiNx on the sides and above, not stacked on top of it). This bug silently
+        # affected every 'hybrid' geometry run before this fix -- see PLAN.md.
         em.shape(name='core', material='custom_AlN', height=p['h_core'], mask=p['w_core'],
+                 position=(0, p['substrate_height'] + p['h_core'] / 2),
                  etch_depth=p['h_core'], sidewall_angle=p['sidewall_angle'], **rough)
         em.shape(name='TopClad', material=p['topclad_material'], height=p['topclad_height'],
                  shape_type='conformal')
