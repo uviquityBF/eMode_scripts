@@ -110,7 +110,8 @@ def page1_title(pdf):
     y -= 0.03
     status = [
         "AlN, SiNx, TiO2 dispersion: committed, wired into at least one geometry family.",
-        "AlN's own UV k(lambda): still open (candidate sources span ~4 orders of magnitude, PLAN.md).",
+        "AlN's own UV k(lambda): a real MOCVD-measured candidate is now picked (AM187-LT6, section 3) --",
+        "  k_e >> k_o, ~0.04-0.05 at SH, ~0.012 at pump -- but NOT YET WIRED into any simulation.",
         "ScAlN: index fitted (8 compositions, Baumler 2019). UV k and chi(2) d33/d31 vs. Sc fraction",
         "  are disputed between sputtered and MBE literature — see section 6.",
         "GaAlN: no dispersion fit exists yet. Section 5 documents the gap, not a fix.",
@@ -235,9 +236,12 @@ def precompute_dispersion_data():
         k = [eval_k(fit['emode_equation_complex'], l) for l in lam_sc]
         sc_curves.append((frac, n, k))
 
+    aln_meas = pd.read_csv('materials/AlN_AM187_LT6_measured_nk.csv')
+
     return {
         'lam_core': lam_core, 'n_o': n_o, 'n_e': n_e, 'sinx_n': sinx_n, 'sinx_k': sinx_k,
         'tio2_n': tio2_n, 'tio2_k': tio2_k, 'lam_sc': lam_sc, 'sc_curves': sc_curves, 'sc_meta': sc,
+        'aln_meas': aln_meas,
     }
 
 
@@ -246,12 +250,15 @@ def page4_core_cladding(pdf, data):
     n_o, n_e = data['n_o'], data['n_e']
     sinx_n, sinx_k = data['sinx_n'], data['sinx_k']
     tio2_n, tio2_k = data['tio2_n'], data['tio2_k']
+    aln_m = data['aln_meas']
     fig, axs = plt.subplots(1, 2, figsize=(11, 5.2))
     fig.suptitle('3. Core/cladding material dispersion', fontsize=14, weight='bold', x=0.08, ha='left')
 
     ax = axs[0]
-    ax.plot(lam, n_o, color='#7570B3', label='AlN n_o')
-    ax.plot(lam, n_e, color='#7570B3', ls='--', label='AlN n_e')
+    ax.plot(lam, n_o, color='#7570B3', ls=':', lw=1.3, alpha=0.6, label='AlN n_o (hardcoded, lossless)')
+    ax.plot(lam, n_e, color='#7570B3', ls='--', lw=1.3, alpha=0.6, label='AlN n_e (hardcoded, lossless)')
+    ax.plot(aln_m['wavelength_nm'], aln_m['n_o'], color='#C23A73', lw=1.8, label='AlN n_o (measured, AM187-LT6)')
+    ax.plot(aln_m['wavelength_nm'], aln_m['n_e'], color='#C23A73', ls='--', lw=1.8, label='AlN n_e (measured, AM187-LT6)')
     ax.plot(lam, sinx_n, color='#009E73', label='SiNx (Beliaev 2022)')
     ax.plot(lam, tio2_n, color='#D55E00', label='TiO2 (Siefke 2016)')
     shade_bands(ax)
@@ -260,20 +267,30 @@ def page4_core_cladding(pdf, data):
     # a real feature of the fit, not a plotting bug, but it dwarfs the device-relevant index
     # range if left unclipped; capped here to the range that's actually useful to read off.
     ax.set_ylim(1.0, 3.2)
-    ax.legend(fontsize=7.5, frameon=False)
+    ax.legend(fontsize=6.5, frameon=False)
     style_ax(ax)
 
     ax = axs[1]
+    ax.plot(aln_m['wavelength_nm'], aln_m['k_o'], color='#C23A73', lw=1.8, label='AlN k_o (measured)')
+    ax.plot(aln_m['wavelength_nm'], aln_m['k_e'], color='#C23A73', ls='--', lw=1.8, label='AlN k_e (measured)')
     ax.plot(lam, sinx_k, color='#009E73', label='SiNx')
     ax.plot(lam, tio2_k, color='#D55E00', label='TiO2')
     ax.axhline(0, color=BORDER, lw=0.8)
     shade_bands(ax)
     ax.set_xlabel('wavelength [nm]'); ax.set_ylabel('k')
-    ax.set_title('AlN k = 0 everywhere (not plotted) — modeled lossless, section 6', fontsize=8.5, color=WARN)
-    ax.legend(fontsize=7.5, frameon=False)
+    ax.set_title('AlN hardcoded equation is still k=0 everywhere — these measured curves are NOT\n'
+                'yet wired into any simulation, see section 6', fontsize=8, color=WARN)
+    ax.legend(fontsize=7, frameon=False)
     style_ax(ax)
 
-    fig.tight_layout(rect=(0, 0.02, 1, 0.91))
+    fig.tight_layout(rect=(0, 0.06, 1, 0.91))
+    fig.text(0.08, 0.02,
+              "AlN measured curves: sample AM187 (MOCVD, new model, 6.4.26), position LT(6) -- the lowest, "
+              "non-negative k_e among all MOCVD-labeled positions in the team's own ellipsometry\n"
+              "repo (github.com/uviquityBF/ellipsometry_data), selected 2026-10-12. k_e (extraordinary/"
+              "c-axis, the Ey-aligned polarization that drives d33) is ~3-4x k_o at both bands shown -- "
+              "see section 6.",
+              fontsize=7.5, color=INK_FAINT)
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -395,7 +412,15 @@ def page8_notes(pdf):
         "Material fits: materials/fit_sinx_sellmeier.py (Beliaev et al., Thin Solid Films 763,",
         "139568, 2022), materials/fit_tio2_sellmeier.py (Siefke et al., Adv. Opt. Mater. 4, 1780,",
         "2016), materials/fit_baumler_sellmeier.py (Baumler et al., J. Appl. Phys. 126, 045715,",
-        "2019, digitized). AlN o/e equations hardcoded in geometry.py (AlN_EQ_O/AlN_EQ_E).",
+        "2019, digitized). AlN o/e equations hardcoded in geometry.py (AlN_EQ_O/AlN_EQ_E) --",
+        "real-valued, lossless; not yet updated to use the measured data below.",
+        "",
+        "AlN measured n/k: materials/AlN_AM187_LT6_measured_nk.csv, exported 2026-10-12 from",
+        "github.com/uviquityBF/ellipsometry_data (a sibling repo, cloned to ..\\ellipsometry_data,",
+        "not inside this one) -- sample AM187 (MOCVD, new model, 6.4.26), wafer position LT(6),",
+        "picked as the lowest non-negative k_e among all MOCVD-labeled positions in that repo's",
+        "catalog (240 anisotropic positions checked). Raw WVASE ellipsometry export, not yet fit",
+        "to a Sellmeier/damped-oscillator equation -- plotted directly in section 3.",
         "",
         "Pump-loss comparison: compare_pump_loss_assumptions.py, computed from trial_grid's already-",
         "exported TM00 pump fields -- no new EMode calls. Re-run that script directly to regenerate",

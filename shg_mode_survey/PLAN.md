@@ -1037,3 +1037,28 @@ doesn't (embedded-Cerenkov, recreating the user's own sketch in this report's vi
 
 Explicitly states the matrix is not a green light to run all ten rows unsupervised -- user
 direction, 2026-10-12: each batch gets its own check-in.
+
+### AlN sample picked, exported, plotted in the Input Assumptions PDF (2026-10-12)
+
+User: "anything labeled AMxxxx is MOCVD" (confirms the inference above without changing the
+result -- AM187 already topped the ranking among all candidates, AM-labeled or not) and "pick
+whichever MOCVD data has the lowest, but non-negative k values among all the runs". Re-ran the
+215-235nm scan restricted to MOCVD-labeled folders (223 positions, 24 sample folders) and checked
+the full band (not just 225nm) for any negative k_e before ranking: 219 of 220 positions with
+SH-band coverage are fully non-negative; the one exception (`AM190 new model 6.25.26`, k_e as low
+as -0.033 in-band) is excluded as unphysical, consistent with the single-point anomaly already
+flagged. **Winner: AM187 (new model, 6.4.26), position LT(6)** -- lowest mean k_e (0.0474) over
+215-235nm, and the whole wafer is consistently low (all 8 measured positions land in the overall
+top 8), not a single outlier measurement.
+
+Exported to `materials/AlN_AM187_LT6_measured_nk.csv` (150-600nm, n_o/k_o/n_e/k_e from the raw
+WVASE export, not the fitted real-only equation -- k isn't carried by that equation string).
+Plotted directly (not yet fit to a Sellmeier/damped-oscillator form) in the Input Assumptions
+PDF's section 3, overlaid against the existing hardcoded (lossless) AlN curves for direct
+comparison: k_e ~0.04-0.05 at SH, ~0.012 at pump; k_o notably lower at both (~3-4x less). **Not
+yet wired into any simulation** -- `core_eq_o`/`core_eq_e` in `geometry.py` are unchanged, still
+real-valued. Next step (not yet done, needs a decision first): fit this position's n+k data to a
+damped-Sellmeier equation matching the `fit_sinx_sellmeier.py`/`fit_tio2_sellmeier.py` convention,
+then decide whether/how to wire real AlN absorption into the survey pipeline -- a change with
+potentially the largest impact of anything in this project so far, since AlN has been assumed
+lossless in every result to date.
