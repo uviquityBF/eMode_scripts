@@ -95,6 +95,7 @@ def page1_title(pdf):
     fig.text(0.08, y, 'CONTENTS', fontsize=9, weight='bold', color=INK_FAINT)
     y -= 0.03
     contents = [
+        "0. Figures of merit — what NCE and peak efficiency mean, and why only one moves with loss",
         "1. Loss model — scattering + absorption mechanism assumptions, with citations",
         "2. Pump-loss assumption comparison (code vs. the Loss Model Summary memo)",
         "3. Core/cladding material dispersion — AlN, SiNx, TiO2",
@@ -105,7 +106,7 @@ def page1_title(pdf):
         "7. Notes & provenance",
     ]
     text_block(fig, 0.08, y, contents, fontsize=10)
-    y -= 0.25
+    y -= 0.275
 
     fig.text(0.08, y, 'STATUS AT TIME OF WRITING', fontsize=9, weight='bold', color=WARN)
     y -= 0.03
@@ -123,6 +124,85 @@ def page1_title(pdf):
         "GaAlN: no dispersion fit exists yet. Section 5 documents the gap, not a fix.",
     ]
     text_block(fig, 0.08, y, status, fontsize=9.5, color=INK_MUTED)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page0_figures_of_merit(pdf):
+    """NCE vs. loss-limited peak efficiency -- added 2026-10-12 after a reader of
+    aln_loss_report.pdf had to ask what NCE actually means and why it doesn't move when loss
+    does. A correct explanation already existed (aln_loss_report.pdf's own header text, a
+    buried PLAN.md changelog line, scattered docstrings/captions, and the 2026-10-05 field-guide
+    artifact) but nowhere in this report -- the one document whose own docstring says every
+    other report should reference it instead of re-deriving this. Unnumbered ("0.") to avoid
+    renumbering every other section's cross-references; it belongs conceptually first."""
+    LH = 0.0305  # ~one text_block line at fontsize=9.5/linespacing=1.6, empirically fit to this page
+
+    fig = plt.figure(figsize=(11, 8.5))
+    y = 0.94
+    fig.text(0.08, y, '0. Figures of merit: what NCE and peak efficiency mean', fontsize=16,
+              weight='bold', color=INK)
+    y -= 0.055
+
+    fig.text(0.08, y, 'A phase-matched crossing', fontsize=11, weight='bold', color=INK)
+    y -= 0.024
+    lines = [
+        "The pump mode's effective index n_eff,pump(2*lambda) equals the SH mode's",
+        "n_eff,SH(lambda) -- pump and SH stay in step as they co-propagate, so generated SH",
+        "keeps adding constructively instead of periodically cancelling. Every crossings.csv",
+        "row is one such pump/SH mode pair.",
+    ]
+    text_block(fig, 0.08, y, lines, fontsize=9.5, color=INK_MUTED)
+    y -= len(lines) * LH + 0.018
+
+    fig.text(0.08, y, 'NCE -- eta_pct_per_W_cm2 (normalized conversion efficiency)', fontsize=11,
+              weight='bold', color=INK)
+    y -= 0.024
+    lines = [
+        "A pure field-overlap quantity: how well the pump-driven nonlinear polarization",
+        "(chi(2):E_pump^2) lines up with the SH mode's own field shape, for 1W-normalized",
+        "modes (%/W/cm^2 -- shg_physics.eta_norm_per_W_m2/eta_to_pct_per_W_cm2). Computed",
+        "from the two mode PROFILES at one cross-section -- propagation distance and device",
+        "length never enter. overlap_shape (0-1) is the companion dimensionless version.",
+    ]
+    text_block(fig, 0.08, y, lines, fontsize=9.5, color=INK_MUTED)
+    y -= len(lines) * LH + 0.018
+
+    fig.text(0.08, y, 'Loss-limited peak efficiency -- peak_efficiency_pct_per_W', fontsize=11,
+              weight='bold', color=INK)
+    y -= 0.024
+    lines = ["What you'd actually measure from a real device of length L, pump/SH power-loss",
+             "coefficients alpha_p/alpha_s (shg_physics.loss_limited_length):"]
+    text_block(fig, 0.08, y, lines, fontsize=9.5, color=INK_MUTED)
+    y -= len(lines) * LH + 0.012
+    fig.text(0.12, y, "P_SH(L) = eta * P_pump^2 * L_eff(L)^2", fontsize=10.5, family='monospace',
+              color=ACCENT)
+    y -= 0.03
+    fig.text(0.12, y, "L_eff(L) = [exp(-alpha_p*L) - exp(-alpha_s*L/2)] / (alpha_s/2 - alpha_p)",
+              fontsize=10.5, family='monospace', color=ACCENT)
+    y -= 0.045
+    lines = [
+        "L_eff -> L as loss -> 0 (plain quadratic P_SH ~ L^2); with real loss it rises, peaks",
+        "at an optimum length L_opt (L_opt_mm), then DECLINES for longer devices -- not a",
+        "plateau. peak_efficiency_pct_per_W = eta * L_eff(L_opt)^2: 'is this design any good'",
+        "for a real device, as opposed to eta alone.",
+    ]
+    text_block(fig, 0.08, y, lines, fontsize=9.5, color=INK_MUTED)
+    y -= len(lines) * LH + 0.018
+
+    fig.text(0.08, y, 'Why NCE never moves when the loss model changes', fontsize=11, weight='bold',
+              color=WARN)
+    y -= 0.024
+    lines = [
+        "eta and L_eff come from disjoint inputs -- eta from the transverse mode SHAPES alone",
+        "(no z-dependence), L_eff from alpha_p/alpha_s alone (never looks at mode shape).",
+        "Changing the loss model -- AlN's own absorption, sidewall roughness, a different",
+        "cladding -- can only move L_eff (hence L_opt and peak efficiency); it has no path",
+        "back to eta. Every loss-comparison report here (e.g. aln_loss_report.pdf) shows NCE",
+        "exactly unchanged between scenarios, while peak efficiency moves -- by construction.",
+    ]
+    text_block(fig, 0.08, y, lines, fontsize=9.5, color=INK_MUTED)
+
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -535,6 +615,7 @@ def main():
     data = precompute_dispersion_data()
     with PdfPages(out) as pdf:
         page1_title(pdf)
+        page0_figures_of_merit(pdf)
         page2_loss_model(pdf)
         page3_comparison(pdf)
         page4_core_cladding(pdf, data)
