@@ -1250,3 +1250,24 @@ the full 10/25/50% coupling range (44 / 277 / 1107 nW) instead of just the pessi
 tracks the benchtop "10s of nW typically" population well at low coupling, within ~1.4x of the
 200nW best case at 25% coupling -- the 50%-coupling over-prediction points to that device's true
 coupling being below 50%, not to 100 dB/cm being wrong.
+
+### Figures of Merit section added to Input Assumptions (2026-10-12)
+
+User asked for a plain explanation of "NCE does not depend on loss" after reading
+`aln_loss_report.pdf`. Before writing a fresh answer, searched the existing docs (via a Explore
+agent) to check whether this was already documented: a correct, complete explanation DID already
+exist -- best in `aln_loss_report.pdf`'s own header text and a buried `PLAN.md` changelog line --
+but scattered, and notably **absent entirely from `build_assumptions_report.py`**, the one
+document whose own docstring says every other report should reference it rather than re-derive
+anything. User also pointed to an earlier "SHG Mode Survey Field Guide" artifact
+(claude.ai, dated 2026-10-05) which has a good narrative version of this too -- but it's an
+unmanaged snapshot (no auto-regeneration) already stale relative to everything in this file from
+AM187 onward, so not treated as the canonical home either.
+
+Added an unnumbered "0. Figures of merit" page to `build_assumptions_report.py`, right after the
+title page (avoids renumbering every other section's cross-references) -- phase-matched crossing,
+NCE (pure mode-shape overlap, no z-dependence), loss-limited peak efficiency
+(`P_SH = eta*P_pump^2*L_eff^2`), and an explicit "why NCE never moves" close: eta and L_eff are
+functions of disjoint inputs (transverse mode shape vs. propagation/attenuation), so changing the
+loss model structurally cannot reach eta. Content had to be trimmed twice to fit one page cleanly
+(verified by rendering, not estimated on paper -- the first two drafts ran off the bottom edge).
