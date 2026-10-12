@@ -1340,3 +1340,9 @@ before anything launches; the vertical sweep also gained one point (sin_height=4
 pedestal archival data's "smaller sin_height keeps winning" trend to the 200nm-margin boundary.
 
 Still not started: the actual EMode campaign itself (row 6 first). Pending user confirmation.
+
+**Post-run checklist for row 6 (hybrid_sweep1/hybrid_vertical1), user direction 2026-10-12:** check
+`cerenkov_allowed_any` across all refined crossings once each run completes -- flag immediately if
+any come back `True` (every pedestal-family crossing, same materials, came back `False`; the
+embedded geometry could plausibly shift `n_eff,pump` enough to change that). Only worth running
+`cerenkov_run.py`'s actual FDFD rate solve if something does flag.
