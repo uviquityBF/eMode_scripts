@@ -100,13 +100,14 @@ def page1_title(pdf):
         "2. Pump-loss assumption comparison (code vs. the Loss Model Summary memo)",
         "3. Core/cladding material dispersion — AlN, SiNx, TiO2",
         "3b. SH-loss calibration — why AlN's measured k isn't used, what is, and why",
-        "4. ScAlN composition sweep — index ready, k/d33 open",
+        "4. ScAlN composition sweep — index ready, UV k still open",
         "5. GaAlN — not yet sourced (status page)",
         "6. Nonlinear (chi(2)) tensor summary",
+        "6b. ScAlN d33: which value this project uses, and why (2026-10-12 decision)",
         "7. Notes & provenance",
     ]
     text_block(fig, 0.08, y, contents, fontsize=10)
-    y -= 0.275
+    y -= 0.305
 
     fig.text(0.08, y, 'STATUS AT TIME OF WRITING', fontsize=9, weight='bold', color=WARN)
     y -= 0.03
@@ -119,8 +120,9 @@ def page1_title(pdf):
         "  real device output and found 3-4 orders of magnitude too high (section 3b). SH loss",
         "  instead uses a flat, empirically-calibrated 100 dB/cm placeholder; pump loss stays at its",
         "  prior native (scattering + interface-defect mechanism) value, unchanged.",
-        "ScAlN: index fitted (8 compositions, Baumler 2019). UV k and chi(2) d33/d31 vs. Sc fraction",
-        "  are disputed between sputtered and MBE literature — see section 6.",
+        "ScAlN: index fitted (8 compositions, Baumler 2019). UV k not sourced. chi(2) d33/d31 vs.",
+        "  Sc fraction is disputed (sputtered vs. MBE, section 6) -- working value chosen anyway:",
+        "  d33=54.6/d31=3.95 pm/V at 32% Sc, flagged AT RISK (section 6b).",
         "GaAlN: no dispersion fit exists yet. Section 5 documents the gap, not a fix.",
     ]
     text_block(fig, 0.08, y, status, fontsize=9.5, color=INK_MUTED)
@@ -463,7 +465,7 @@ def page5_scaln(pdf, data):
     sc = data['sc_meta']
     lam = data['lam_sc']
     fig, axs = plt.subplots(1, 2, figsize=(11, 5.2))
-    fig.suptitle('4. ScAlN composition sweep (index ready, k/d33 open)', fontsize=14, weight='bold', x=0.08, ha='left')
+    fig.suptitle('4. ScAlN composition sweep (index ready, UV k still open)', fontsize=14, weight='bold', x=0.08, ha='left')
 
     cmap = plt.get_cmap('viridis')
     for i, (frac, n, k) in enumerate(data['sc_curves']):
@@ -484,8 +486,9 @@ def page5_scaln(pdf, data):
 
     fig.text(0.08, 0.05,
               f"Source: {sc['source'][:110]}\nk resolution ~0.008, fit to 0 beyond {sc.get('transparent_nm','?')} nm "
-              "(digitization limit, not a physical statement) — UV k and the chi(2) d33/d31-vs-Sc\n"
-              "relationship are NOT from this fit and remain disputed; see section 6.",
+              "(digitization limit, not a physical statement) — UV k is not sourced at all. The\n"
+              "chi(2) d33/d31-vs-Sc relationship IS disputed in the literature (section 6) but has a "
+              "working value despite that (section 6b).",
               fontsize=8, color=INK_FAINT)
     pdf.savefig(fig)
     plt.close(fig)
@@ -538,9 +541,11 @@ def page7_tensor(pdf):
         ('AlN, sputter film', '5.1 +/- 0.4', '0.07', 'Yoshioka 2021, APL Mater. 9, 101104'),
         ('ScAlN sputter, 10/20/28/36% Sc', '15.8/42.5/46.9/62.3', '0.84/2.4/3.4/4.5', 'Yoshioka 2021'),
         ('ScAlN MBE on sapphire, 10/15/20/25%', '-2.5/5.1/-3.1/3.2 (noisy)', '1.6/3.3/4.9/1.6', 'Lee et al., arXiv 2607.14590 (2026)'),
+        ('ScAlN WORKING VALUE, 32% Sc', '54.6 (AT RISK)', '3.95', '2026-10-12 decision -- see below'),
     ]
     for name, d33, d31, src in rows:
-        fig.text(0.08, y, name, fontsize=9, weight='bold', color=INK)
+        color = WARN if 'WORKING' in name else INK
+        fig.text(0.08, y, name, fontsize=9, weight='bold', color=color)
         fig.text(0.42, y, f"d33={d33} pm/V", fontsize=8.5, color=INK_MUTED, family='monospace')
         fig.text(0.68, y, f"d31={d31}", fontsize=8.5, color=INK_MUTED, family='monospace')
         y -= 0.022
@@ -554,13 +559,60 @@ def page7_tensor(pdf):
         "Sputtered films show strong, clean d33 enhancement with Sc content. MBE films (direct on",
         "sapphire, bypassing the AlN buffer) show d33 scattered/suppressed instead, with d31 showing",
         "the strong, clean enhancement there. Neither growth method has been measured anywhere near",
-        "215-235nm/430-470nm (both cited studies: ~1030nm pump). Implication: if d33 doesn't actually",
-        "enhance for your growth process, a ScAlN core's real lever may be d31 (TE-pump -> TM-SH",
-        "coupling, Py = d31*Ex^2), not d33 -- a different mode/polarization design than naively",
-        "assuming 'bigger d33'. overlap_terms() in shg_physics.py already separates d33/d31/d15",
-        "contributions per crossing, so this is mechanically supported once real tensor values are",
-        "chosen -- the open question is which values, not whether the code can use them.",
+        "215-235nm/430-470nm (both cited studies: ~1030nm pump). See next page for the working-value",
+        "decision this project made given the disagreement.",
     ], fontsize=9, color=INK_MUTED)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page7b_scaln_decision(pdf):
+    fig = plt.figure(figsize=(11, 8.5))
+    y = 0.90
+    fig.text(0.08, y, "6b. ScAlN d33: which value this project uses, and why", fontsize=16,
+              weight='bold', color=INK)
+    y -= 0.055
+
+    lines = [
+        "Rows 2/5/7/8 (Simulation Study Plan) use the HIGHER, sputtered-film d33 -- not because",
+        "sputtered is believed more likely correct, but to quantify the upside if it is:",
+    ]
+    text_block(fig, 0.08, y, lines, fontsize=10, color=INK_MUTED)
+    y -= len(lines) * 0.0305 + 0.025
+
+    fig.text(0.12, y, "d33 = 54.6 pm/V        d31 = 3.95 pm/V        (32% Sc)", fontsize=11,
+              family='monospace', color=WARN, weight='bold')
+    y -= 0.05
+
+    lines = [
+        "Both interpolated from Yoshioka 2021 (sputtered) at 32% Sc -- between the real 28%/36%",
+        "measured points, not extrapolated beyond them. 32% chosen specifically because it also has",
+        "real index data: Baumler 2019's own 8 fitted compositions include 0.32, so this composition",
+        "isn't just a d33 number floating free of any n(lambda) model.",
+    ]
+    text_block(fig, 0.08, y, lines, fontsize=9.5, color=INK_MUTED)
+    y -= len(lines) * 0.0305 + 0.03
+
+    fig.text(0.08, y, 'AT RISK', fontsize=10, weight='bold', color=WARN)
+    y -= 0.027
+    lines = [
+        "If the MBE result (Lee et al. 2026) describes the real growth process instead, d33",
+        "enhancement may be near zero or even negative at this composition. In that case d31",
+        "(TE-pump -> TM-SH coupling, Py = d31*Ex^2) becomes the real lever, not d33 -- a different",
+        "mode/polarization design than simply assuming 'bigger d33 wins'.",
+    ]
+    text_block(fig, 0.08, y, lines, fontsize=9.5, color=INK_MUTED)
+    y -= len(lines) * 0.0305 + 0.03
+
+    fig.text(0.08, y, 'WHY THIS IS CHEAP TO BE WRONG ABOUT', fontsize=10, weight='bold', color=INK)
+    y -= 0.027
+    lines = [
+        "shg_physics.overlap_terms() already separates d33/d31/d15 contributions per crossing, so",
+        "re-ranking by the MBE-consistent mechanism instead needs no code change if this assumption",
+        "turns out wrong -- just a different tensor dict passed to the same sweep. The flag stays in",
+        "every report row that depends on it, not just this page.",
+    ]
+    text_block(fig, 0.08, y, lines, fontsize=9.5, color=INK_MUTED)
     pdf.savefig(fig)
     plt.close(fig)
 
@@ -623,6 +675,7 @@ def main():
         page5_scaln(pdf, data)
         page6_gaaln(pdf)
         page7_tensor(pdf)
+        page7b_scaln_decision(pdf)
         page8_notes(pdf)
     print(f'wrote {out}')
 
