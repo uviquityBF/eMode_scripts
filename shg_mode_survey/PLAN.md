@@ -910,3 +910,62 @@ runs, `family` string swapped and each docstring prefixed with a note pointing b
 3. Once 1-2 are settled: re-run `hybrid1`/`hybrid_sweep1` (lateral) and `hybrid_vertical1`
    (vertical, extended thinner per the "smaller sin_height keeps winning" trend) under the
    corrected geometry, then fold in whatever the broader campaign adds.
+
+### Report-output agreement + Input Assumptions PDF (2026-10-12)
+
+User direction on every future per-sweep results report: (1) pump/blue (430-470 nm) loss reported
+with the same headline prominence as NCE, not buried as a sub-panel -- `loaded`'s TiO2 and now
+`pedestal`'s SiNx both already showed lossless NCE can be badly misleading on its own; (2) a fixed
+"Input Assumptions" page/reference in every report, including a cross-section diagram pulled from
+EMode's own Index-component render; (3) keep the scatter-plot panel types already established
+(`build_subfigure_report.py`'s loss/overlap breakdown); (4) a dB-additive stacked bar chart, one
+bar per geometry, decomposing log(peak efficiency) into overlap/size/pump-loss/SH-loss
+contributions -- agreed as illustrative (not exact), not yet built, pending real data to sketch it
+against.
+
+Found the authoritative source for the pump-loss absorption-mechanism assumptions: a Google Drive
+memo, "Loss Model Summary & Results" (created 2026-09-22; shorthand used from here on:
+`[Loss Model Summary, 2026-09-22]`), with real per-mechanism literature citations where they
+exist (dislocations: Chen et al., Opt. Express 27(12), 17262, 2019 -- though literature treats
+this as scattering with a TM>TE dependence, not modeled as such here; C impurities: Robinson et
+al., arXiv:2606.19615, 2026; O impurities: Bickermann et al., Appl. Phys. Lett. 95, 262104, 2009;
+Si impurities and all 3 sidewall mechanisms: explicitly flagged in the memo as unsupported
+engineering placeholders).
+
+That memo's own "Actual Inputs Used" table does NOT match `survey_config.py`'s actual current
+values (different shapes, penetration depths, and two nonzero sidewall mechanisms the code omits
+entirely) -- see `compare_pump_loss_assumptions.py`. Per user direction: rather than reconcile the
+two, quantified the gap directly (ridge, h_core=350 nm, w_core=300-800 nm, reusing `trial_grid`'s
+already-exported TM00 pump fields, no new EMode calls) and logged it. Result: the memo's values
+give **consistently LOWER** total pump loss than the current code (ratio 0.49-0.75x across that
+width range) -- not higher despite the extra sidewall terms, because the memo's exponential-decay/
+shorter-penetration-depth choices for C/Si/O impurities more than offset them. Not an order-of-
+magnitude gap, matching the user's own expectation -- **current `survey_config.py` assumptions
+kept as-is**, no code change.
+
+Built `build_assumptions_report.py`: an "Input Assumptions" PDF (`runs/input_assumptions_report.pdf`,
+8 pages) every future results report should cite rather than re-deriving -- loss model + citations,
+the pump-loss comparison above, AlN/SiNx/TiO2 dispersion overlay, ScAlN's 8-composition dispersion
+sweep (index ready; UV k and chi(2) d33/d31 vs. Sc fraction still disputed, see below), a GaAlN
+status page (no fit exists; documents the gap, not a fix), and the chi(2) tensor table (already in
+this file, just not previously rendered into a report). Hit and worked around one odd, unexplained
+bug while building it: `geo.eval_index_equation`'s restricted `eval(eq, {'__builtins__': {}}, ...)`
+intermittently raised `KeyError: '__import__'` when called many times in sequence inside this
+script specifically (reproducible given the exact page sequence, but not in a minimal snippet --
+root cause not found); worked around with a local real-builtins eval helper in the report script
+rather than risk changing the shared function used throughout the live EMode pipeline. Also found
+(while building the dispersion charts) that the fitted Sellmeier forms for SiNx/TiO2/ScAlN all have
+a real resonance pole near the UV band edge that dwarfs the device-relevant index range if plotted
+unclipped -- y-axis limits added to keep the charts legible; the pole itself is a real feature of
+the fits, not a bug.
+
+On ScAlN/GaAlN's role in the matrix (user clarification, 2026-10-12): not only core-replacement
+for d33 -- also (a) index engineering for a Cerenkov cladding (composition tunes index, not
+nonlinearity) and (b) as a loading strip that reshapes the AlN mode (pulling it from the substrate
+interface, or improving the AlN region's own overlap) without the strip itself needing to be
+active. GaAlN specifically: NIST (Sanford et al.) gives composition-dependent d33 with a sign
+change near Al fraction x~0.65, favorable (higher-d33) direction toward Ga-rich -- but GaN's
+bandgap (~3.4 eV) sits well below the SH photon energy (~5.5 eV at 215-235 nm), so Ga-rich AlGaN is
+almost certainly strongly absorbing exactly where this project needs transparency. Useful
+composition window likely narrow, not yet checked quantitatively -- documented as an open item on
+the GaAlN status page, not resolved.

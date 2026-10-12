@@ -1,0 +1,428 @@
+"""Input Assumptions report: the materials and loss-model assumptions behind every shg_mode_survey
+results report, in one place, so a reader doesn't have to dig through survey_config.py comments,
+PLAN.md, and the loss_vs_dimensions notebook separately. Every future per-sweep PDF (see
+build_subfigure_report.py) should reference this document rather than re-deriving any of it.
+
+Requested 2026-10-12 after a real discrepancy was found between survey_config.py's pump-side
+absorption-mechanism values and the ones documented in the "Loss Model Summary & Results" memo
+(Google Drive, internal, 2026-09-22) -- see PLAN.md for the full writeup. Per-the-user's direction
+(2026-10-12): not reconciling the two, just quantifying and logging how much they actually differ
+(see compare_pump_loss_assumptions.py), and keeping survey_config.py's current values.
+
+Status as of this version: AlN/SiNx/TiO2 dispersion fits are committed and wired into at least one
+geometry family. ScAlN index data exists (Baumler 2019, 8 compositions) but its UV k and chi(2)
+d-tensor are open/disputed (see PLAN.md's chi(2) table). GaAlN has no dispersion fit yet -- this
+report documents that gap rather than filling it.
+
+Usage: python build_assumptions_report.py [out.pdf]
+"""
+import json
+import sys
+
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from matplotlib.backends.backend_pdf import PdfPages
+
+import geometry as geo
+from compare_pump_loss_assumptions import (CODE_MECHANISMS, DOC_MECHANISMS,
+                                            CODE_SIGMA_SIDEWALL_NM, DOC_SIGMA_SIDEWALL_NM, main as run_comparison)
+
+INK, INK_MUTED, INK_FAINT = '#161a2e', '#5c6180', '#9094ad'
+BORDER = '#dcdfeb'
+ACCENT = '#5b3df0'
+WARN = '#c9680e'
+
+plt.rcParams.update({
+    'font.family': 'DejaVu Sans', 'font.size': 9, 'text.color': INK, 'axes.edgecolor': BORDER,
+    'axes.labelcolor': INK_MUTED, 'xtick.color': INK_MUTED, 'ytick.color': INK_MUTED,
+    'axes.grid': True, 'grid.color': BORDER, 'grid.linewidth': 0.6, 'axes.axisbelow': True,
+    'figure.facecolor': 'white', 'savefig.facecolor': 'white',
+})
+
+
+def eval_n(eq, lam_nm):
+    """Local stand-in for geo.eval_index_equation -- that function's restricted eval(eq,
+    {'__builtins__': {}}, ...) was found to intermittently raise KeyError('__import__') when
+    called many times in sequence within this script (reproducible, but root cause not pinned
+    down -- doesn't reproduce in a minimal snippet, only here). Not worth risking a change to the
+    shared geometry.py function used throughout the live EMode pipeline over a plotting script's
+    quirk, so this local copy just uses real builtins instead of an empty restricted set."""
+    x = lam_nm / 1000.0
+    return float(np.real(eval(eq, {'__builtins__': __builtins__, 'np': np}, {'x': x})))
+
+
+def eval_k(eq, lam_nm):
+    x = lam_nm / 1000.0
+    return float(np.imag(eval(eq, {'__builtins__': __builtins__, 'np': np}, {'x': x})))
+
+
+def style_ax(ax):
+    for s in ('top', 'right'):
+        ax.spines[s].set_visible(False)
+    ax.spines['left'].set_color(BORDER)
+    ax.spines['bottom'].set_color(BORDER)
+
+
+def shade_bands(ax):
+    ax.axvspan(215, 235, color='#eda100', alpha=0.10, lw=0)
+    ax.axvspan(430, 470, color='#2a78d6', alpha=0.08, lw=0)
+
+
+def text_block(fig, x, y, lines, fontsize=10, color=INK, linespacing=1.6, mono=False, weight='normal'):
+    fig.text(x, y, '\n'.join(lines), fontsize=fontsize, color=color, va='top',
+              linespacing=linespacing, family='monospace' if mono else None, weight=weight)
+
+
+def page1_title(pdf):
+    fig = plt.figure(figsize=(11, 8.5))
+    y = 0.93
+    fig.text(0.08, y, 'Input Assumptions', fontsize=24, weight='bold', color=INK)
+    y -= 0.045
+    fig.text(0.08, y, 'shg_mode_survey · loss model + material dispersion, referenced by every results report',
+              fontsize=11, color=INK_MUTED)
+    y -= 0.06
+    body = [
+        "Every per-sweep PDF this project produces should cite this document rather than re-stating",
+        "or re-deriving any assumption. Two bands matter throughout: SH = 215–235 nm (deep UV),",
+        "pump = 430–470 nm (true blue) — shaded orange and blue respectively in every chart below.",
+    ]
+    text_block(fig, 0.08, y, body, fontsize=10.5)
+    y -= 0.14
+
+    fig.text(0.08, y, 'CONTENTS', fontsize=9, weight='bold', color=INK_FAINT)
+    y -= 0.03
+    contents = [
+        "1. Loss model — scattering + absorption mechanism assumptions, with citations",
+        "2. Pump-loss assumption comparison (code vs. the Loss Model Summary memo)",
+        "3. Core/cladding material dispersion — AlN, SiNx, TiO2",
+        "4. ScAlN composition sweep — index ready, k/d33 open",
+        "5. GaAlN — not yet sourced (status page)",
+        "6. Nonlinear (chi(2)) tensor summary",
+        "7. Notes & provenance",
+    ]
+    text_block(fig, 0.08, y, contents, fontsize=10)
+    y -= 0.22
+
+    fig.text(0.08, y, 'STATUS AT TIME OF WRITING', fontsize=9, weight='bold', color=WARN)
+    y -= 0.03
+    status = [
+        "AlN, SiNx, TiO2 dispersion: committed, wired into at least one geometry family.",
+        "AlN's own UV k(lambda): still open (candidate sources span ~4 orders of magnitude, PLAN.md).",
+        "ScAlN: index fitted (8 compositions, Baumler 2019). UV k and chi(2) d33/d31 vs. Sc fraction",
+        "  are disputed between sputtered and MBE literature — see section 6.",
+        "GaAlN: no dispersion fit exists yet. Section 5 documents the gap, not a fix.",
+    ]
+    text_block(fig, 0.08, y, status, fontsize=9.5, color=INK_MUTED)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page2_loss_model(pdf):
+    fig = plt.figure(figsize=(11, 8.5))
+    y = 0.94
+    fig.text(0.08, y, '1. Loss model: scattering + absorption', fontsize=16, weight='bold', color=INK)
+    y -= 0.05
+
+    fig.text(0.08, y, 'Scattering (native EMode, Volume Current Method)', fontsize=11, weight='bold', color=INK)
+    y -= 0.03
+    text_block(fig, 0.08, y, [
+        f"Sidewall (vertical): {CODE_SIGMA_SIDEWALL_NM:g} nm RMS roughness, 50 nm correlation length.",
+        "Top/bottom (horizontal): 0.3 nm RMS roughness, 10 nm correlation length.",
+        "Values as currently used in survey_config.py. The \"Loss Model Summary\" memo (see section 2)",
+        f"used {DOC_SIGMA_SIDEWALL_NM:g} nm sidewall RMS instead — everything else matches.",
+    ], fontsize=9.5, color=INK_MUTED)
+    y -= 0.14
+
+    fig.text(0.08, y, 'Absorption (non-uniform, growth-interface defects)', fontsize=11, weight='bold', color=INK)
+    y -= 0.03
+    text_block(fig, 0.08, y, [
+        "Each mechanism: a local power-absorption coefficient (alpha0, dB/m) at a physical boundary,",
+        "decaying into the core (exponential or step) over a penetration depth L (nm). Modal loss is",
+        "the Poynting-flux-weighted average of that profile over the mode. Currently active in",
+        "survey_config.py's pump_absorption_mechanisms (4 of them; sh_absorption_mechanisms is empty",
+        "— AlN itself is assumed to contribute ZERO absorption at the SH wavelength):",
+    ], fontsize=9.5, color=INK_MUTED)
+    y -= 0.14
+
+    rows = [
+        ('Dislocations', '2000 dB/m, exp, 40nm', 'Chen et al., Opt. Express 27(12), 17262 (2019) — but',
+         'literature treats this as SCATTERING with a TM>TE dependence, not modeled here as such.'),
+        ('C impurities', '3500 dB/m, step, 50nm', 'Robinson et al., arXiv:2606.19615 (2026)', ''),
+        ('Si impurities', '3500 dB/m, step, 50nm', 'No literature value found.', 'Engineering placeholder.'),
+        ('O impurities', '5000 dB/m, step, 50nm', 'Bickermann et al., Appl. Phys. Lett. 95, 262104 (2009)', ''),
+    ]
+    for name, val, cite1, cite2 in rows:
+        fig.text(0.08, y, name, fontsize=9.5, weight='bold', color=INK)
+        fig.text(0.28, y, val, fontsize=9, color=INK_MUTED, family='monospace')
+        fig.text(0.08, y - 0.022, cite1, fontsize=8.5, color=ACCENT)
+        y -= 0.022
+        if cite2:
+            fig.text(0.08, y - 0.022, cite2, fontsize=8.5, color=INK_FAINT)
+            y -= 0.022
+        y -= 0.028
+
+    y -= 0.01
+    fig.text(0.08, y, 'Not currently modeled at all (zero sidewall mechanisms in survey_config.py):',
+              fontsize=9, color=WARN, weight='bold')
+    y -= 0.025
+    text_block(fig, 0.08, y, [
+        "Oxidation ingress, sidewall contamination, sidewall damage — all three have no literature",
+        "support either; the Loss Model Summary memo carries two of them at nonzero values (see",
+        "section 2's comparison). Dropped here, not evaluated as zero-impact — just never added.",
+    ], fontsize=8.5, color=INK_MUTED)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page3_comparison(pdf):
+    df = run_comparison()
+    fig = plt.figure(figsize=(11, 8.5))
+    y = 0.94
+    fig.text(0.08, y, '2. Pump-loss assumption comparison', fontsize=16, weight='bold', color=INK)
+    y -= 0.04
+    text_block(fig, 0.08, y, [
+        "code = survey_config.py's current 4-mechanism set (section 1). doc = the \"Loss Model Summary",
+        "& Results\" memo's own \"Actual Inputs Used\" table (7 mechanisms, different roughness).",
+        "Computed from trial_grid's already-exported TM00 pump fields (ridge, h_core=350 nm fixed,",
+        "no new EMode calls). Scattering's roughness difference (2.5 vs 2.0 nm sidewall) is applied",
+        "as an analytic (RMS)^2 scaling to the combined EMode-native value, not a fresh VCM solve —",
+        "a rougher approximation than the absorption-side comparison; see the script's docstring.",
+    ], fontsize=9, color=INK_MUTED)
+    y -= 0.20  # clears the 6-line text block above (was wrongly dropped in an earlier edit)
+    axes_bottom = 0.22
+    ax = fig.add_axes((0.1, axes_bottom, 0.8, y - axes_bottom))
+    ax.plot(df['w_core'], df['total_code_dB_per_cm'], 'o-', color=ACCENT, label='code (current)', lw=2)
+    ax.plot(df['w_core'], df['total_doc_dB_per_cm'], 's--', color=WARN, label='doc (memo)', lw=2)
+    ax.set_xlabel('ridge core width w_core [nm]  (h_core = 350 nm)')
+    ax.set_ylabel('total pump loss [dB/cm]')
+    ax.legend(frameon=False, fontsize=9)
+    style_ax(ax)
+
+    ratio_lo, ratio_hi = df['ratio_doc_over_code'].min(), df['ratio_doc_over_code'].max()
+    text_block(fig, 0.08, 0.14, [
+        f"doc/code ratio across this width range: {ratio_lo:.2f}–{ratio_hi:.2f}x — doc consistently",
+        "LOWER than code, not higher, despite its extra sidewall terms (its exponential-decay,",
+        "shorter-penetration-depth choices for C/Si/O more than offset that). Not an order-of-",
+        "magnitude gap. Per 2026-10-12 direction: logged here, current code assumptions kept as-is.",
+    ], fontsize=8.5, color=INK_MUTED, linespacing=1.5)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def precompute_dispersion_data():
+    """All equation evals happen here (using the local eval_n/eval_k helpers above, not
+    geo.eval_index_equation -- see that function's note), before any plotting starts."""
+    lam_core = np.linspace(200, 500, 400)
+    n_o = [eval_n(geo.AlN_EQ_O, l) for l in lam_core]
+    n_e = [eval_n(geo.AlN_EQ_E, l) for l in lam_core]
+    sinx = json.load(open('materials/SiNx_Beliaev2022_sellmeier_fit.json'))
+    tio2 = json.load(open('materials/TiO2_Siefke2016_sellmeier_fit.json'))
+    sinx_n = [eval_n(sinx['emode_equation_real'], l) for l in lam_core]
+    sinx_k = [eval_k(sinx['emode_equation_complex'], l) for l in lam_core]
+    tio2_n = [eval_n(tio2['emode_equation_real'], l) for l in lam_core]
+    tio2_k = [eval_k(tio2['emode_equation_complex'], l) for l in lam_core]
+
+    sc = json.load(open('materials/ScAlN_Baumler2019_sellmeier_fits.json'))
+    lam_sc = np.linspace(207, 500, 400)
+    fractions = sorted(sc['fits'].keys(), key=float)
+    sc_curves = []
+    for frac in fractions:
+        fit = sc['fits'][frac]
+        n = [eval_n(fit['emode_equation_real'], l) for l in lam_sc]
+        k = [eval_k(fit['emode_equation_complex'], l) for l in lam_sc]
+        sc_curves.append((frac, n, k))
+
+    return {
+        'lam_core': lam_core, 'n_o': n_o, 'n_e': n_e, 'sinx_n': sinx_n, 'sinx_k': sinx_k,
+        'tio2_n': tio2_n, 'tio2_k': tio2_k, 'lam_sc': lam_sc, 'sc_curves': sc_curves, 'sc_meta': sc,
+    }
+
+
+def page4_core_cladding(pdf, data):
+    lam = data['lam_core']
+    n_o, n_e = data['n_o'], data['n_e']
+    sinx_n, sinx_k = data['sinx_n'], data['sinx_k']
+    tio2_n, tio2_k = data['tio2_n'], data['tio2_k']
+    fig, axs = plt.subplots(1, 2, figsize=(11, 5.2))
+    fig.suptitle('3. Core/cladding material dispersion', fontsize=14, weight='bold', x=0.08, ha='left')
+
+    ax = axs[0]
+    ax.plot(lam, n_o, color='#7570B3', label='AlN n_o')
+    ax.plot(lam, n_e, color='#7570B3', ls='--', label='AlN n_e')
+    ax.plot(lam, sinx_n, color='#009E73', label='SiNx (Beliaev 2022)')
+    ax.plot(lam, tio2_n, color='#D55E00', label='TiO2 (Siefke 2016)')
+    shade_bands(ax)
+    ax.set_xlabel('wavelength [nm]'); ax.set_ylabel('n')
+    # fitted Sellmeier forms have a resonance pole near the UV band edge (denominator -> 0) --
+    # a real feature of the fit, not a plotting bug, but it dwarfs the device-relevant index
+    # range if left unclipped; capped here to the range that's actually useful to read off.
+    ax.set_ylim(1.0, 3.2)
+    ax.legend(fontsize=7.5, frameon=False)
+    style_ax(ax)
+
+    ax = axs[1]
+    ax.plot(lam, sinx_k, color='#009E73', label='SiNx')
+    ax.plot(lam, tio2_k, color='#D55E00', label='TiO2')
+    ax.axhline(0, color=BORDER, lw=0.8)
+    shade_bands(ax)
+    ax.set_xlabel('wavelength [nm]'); ax.set_ylabel('k')
+    ax.set_title('AlN k = 0 everywhere (not plotted) — modeled lossless, section 6', fontsize=8.5, color=WARN)
+    ax.legend(fontsize=7.5, frameon=False)
+    style_ax(ax)
+
+    fig.tight_layout(rect=(0, 0.02, 1, 0.91))
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page5_scaln(pdf, data):
+    sc = data['sc_meta']
+    lam = data['lam_sc']
+    fig, axs = plt.subplots(1, 2, figsize=(11, 5.2))
+    fig.suptitle('4. ScAlN composition sweep (index ready, k/d33 open)', fontsize=14, weight='bold', x=0.08, ha='left')
+
+    cmap = plt.get_cmap('viridis')
+    for i, (frac, n, k) in enumerate(data['sc_curves']):
+        color = cmap(i / max(1, len(data['sc_curves']) - 1))
+        axs[0].plot(lam, n, color=color, label=f"{float(frac)*100:.0f}% Sc")
+        axs[1].plot(lam, k, color=color, label=f"{float(frac)*100:.0f}% Sc")
+
+    for ax, ylab in zip(axs, ('n', 'k')):
+        shade_bands(ax)
+        ax.set_xlabel('wavelength [nm]'); ax.set_ylabel(ylab)
+        style_ax(ax)
+    # same resonance-pole clipping as page 4 (see that comment) -- real feature of the fits,
+    # clipped here purely so the device-relevant range is actually legible.
+    axs[0].set_ylim(1.5, 3.5)
+    axs[1].set_ylim(-0.02, 0.4)
+    axs[0].legend(fontsize=6.5, frameon=False, ncol=2)
+    fig.tight_layout(rect=(0, 0.1, 1, 0.91))
+
+    fig.text(0.08, 0.05,
+              f"Source: {sc['source'][:110]}\nk resolution ~0.008, fit to 0 beyond {sc.get('transparent_nm','?')} nm "
+              "(digitization limit, not a physical statement) — UV k and the chi(2) d33/d31-vs-Sc\n"
+              "relationship are NOT from this fit and remain disputed; see section 6.",
+              fontsize=8, color=INK_FAINT)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page6_gaaln(pdf):
+    fig = plt.figure(figsize=(11, 8.5))
+    y = 0.90
+    fig.text(0.08, y, '5. GaAlN: not yet sourced', fontsize=16, weight='bold', color=INK)
+    y -= 0.06
+    text_block(fig, 0.08, y, [
+        "No n(lambda)/k(lambda) dispersion fit exists for GaAlN (Al_xGa_1-xN) in this repo. This page",
+        "documents the gap and what's known from a first literature pass, not a resolution.",
+        "",
+        "Two independent motivations were identified for keeping GaAlN in the design matrix even with",
+        "d33 enhancement deprioritized (user direction, 2026-10-12):",
+        "  1. Index engineering for a Cerenkov cladding (composition tunes index, not nonlinearity).",
+        "  2. As a loading strip that reshapes the AlN mode — pulling it from the substrate interface,",
+        "     or improving the AlN region's own overlap — without needing the strip itself active.",
+        "",
+        "Composition-dependent d33 (NIST, Sanford et al.): decreases with increasing Al fraction x,",
+        "with a SIGN CHANGE near x ~ 0.65. The favorable (higher-d33) direction is toward Ga-rich",
+        "compositions — but GaN's bandgap (~3.4 eV) is well below the SH photon energy at 215-235 nm",
+        "(~5.5 eV), so Ga-rich AlGaN is almost certainly strongly absorbing exactly where this project",
+        "needs transparency. The useful composition window (enough Ga for index tuning, not so much",
+        "that it absorbs the SH) is likely narrow and has not been checked quantitatively.",
+        "",
+        "Needed before GaAlN can enter any sweep: n(lambda)/k(lambda) across 215-470 nm for a composition",
+        "range still TBD (narrow, Al-rich, pending the transparency check above).",
+    ], fontsize=10, color=INK_MUTED)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page7_tensor(pdf):
+    fig = plt.figure(figsize=(11, 8.5))
+    y = 0.90
+    fig.text(0.08, y, '6. Nonlinear (chi(2)) tensor summary', fontsize=16, weight='bold', color=INK)
+    y -= 0.05
+    text_block(fig, 0.08, y, [
+        "wurtzite 6mm, c || y. Nonzero: d33; d31 = d32; d15 = d24. Py = eps0[d31(Ex^2+Ez^2) + d33 Ey^2],",
+        "Px = 2 eps0 d15 Ex Ey, Pz = 2 eps0 d15 Ez Ey. Kleinman symmetry (d15=d31) assumed unless data",
+        "says otherwise -- questionable near the SH band edge, treat d15 as separate.",
+    ], fontsize=9.5, color=INK_MUTED)
+    y -= 0.12
+
+    rows = [
+        ('AlN, bulk', '4.3 +/- 0.3 (@1030nm)', '~0.1', 'Majkic 2017, pssb 201700077'),
+        ('AlN (working value)', '4.7', '~0.1', "user's current value -- used throughout this project"),
+        ('AlN, sputter film', '5.1 +/- 0.4', '0.07', 'Yoshioka 2021, APL Mater. 9, 101104'),
+        ('ScAlN sputter, 10/20/28/36% Sc', '15.8/42.5/46.9/62.3', '0.84/2.4/3.4/4.5', 'Yoshioka 2021'),
+        ('ScAlN MBE on sapphire, 10/15/20/25%', '-2.5/5.1/-3.1/3.2 (noisy)', '1.6/3.3/4.9/1.6', 'Lee et al., arXiv 2607.14590 (2026)'),
+    ]
+    for name, d33, d31, src in rows:
+        fig.text(0.08, y, name, fontsize=9, weight='bold', color=INK)
+        fig.text(0.42, y, f"d33={d33} pm/V", fontsize=8.5, color=INK_MUTED, family='monospace')
+        fig.text(0.68, y, f"d31={d31}", fontsize=8.5, color=INK_MUTED, family='monospace')
+        y -= 0.022
+        fig.text(0.08, y, src, fontsize=8, color=ACCENT)
+        y -= 0.035
+
+    y -= 0.02
+    fig.text(0.08, y, 'DISAGREEMENT', fontsize=9, weight='bold', color=WARN)
+    y -= 0.025
+    text_block(fig, 0.08, y, [
+        "Sputtered films show strong, clean d33 enhancement with Sc content. MBE films (direct on",
+        "sapphire, bypassing the AlN buffer) show d33 scattered/suppressed instead, with d31 showing",
+        "the strong, clean enhancement there. Neither growth method has been measured anywhere near",
+        "215-235nm/430-470nm (both cited studies: ~1030nm pump). Implication: if d33 doesn't actually",
+        "enhance for your growth process, a ScAlN core's real lever may be d31 (TE-pump -> TM-SH",
+        "coupling, Py = d31*Ex^2), not d33 -- a different mode/polarization design than naively",
+        "assuming 'bigger d33'. overlap_terms() in shg_physics.py already separates d33/d31/d15",
+        "contributions per crossing, so this is mechanically supported once real tensor values are",
+        "chosen -- the open question is which values, not whether the code can use them.",
+    ], fontsize=9, color=INK_MUTED)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page8_notes(pdf):
+    fig = plt.figure(figsize=(11, 8.5))
+    fig.text(0.08, 0.92, '7. Notes & provenance', fontsize=16, weight='bold', color=INK)
+    text_block(fig, 0.08, 0.86, [
+        "Loss model source: \"Loss Model Summary & Results\", internal memo, Google Drive, created",
+        "2026-09-22 (shorthand used throughout this project: [Loss Model Summary, 2026-09-22]).",
+        "Companion doc: \"AlN_Absorption_Literature_Review\" (same Drive folder).",
+        "",
+        "Material fits: materials/fit_sinx_sellmeier.py (Beliaev et al., Thin Solid Films 763,",
+        "139568, 2022), materials/fit_tio2_sellmeier.py (Siefke et al., Adv. Opt. Mater. 4, 1780,",
+        "2016), materials/fit_baumler_sellmeier.py (Baumler et al., J. Appl. Phys. 126, 045715,",
+        "2019, digitized). AlN o/e equations hardcoded in geometry.py (AlN_EQ_O/AlN_EQ_E).",
+        "",
+        "Pump-loss comparison: compare_pump_loss_assumptions.py, computed from trial_grid's already-",
+        "exported TM00 pump fields -- no new EMode calls. Re-run that script directly to regenerate",
+        "runs/pump_loss_assumption_comparison.csv.",
+        "",
+        "This report: build_assumptions_report.py. Regenerate after any change to the loss model or",
+        "material fits referenced above -- every per-sweep results PDF should cite this document's",
+        "generation date rather than re-deriving any of this.",
+    ], fontsize=10, color=INK_MUTED)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
+def main():
+    out = sys.argv[1] if len(sys.argv) > 1 else 'runs/input_assumptions_report.pdf'
+    data = precompute_dispersion_data()
+    with PdfPages(out) as pdf:
+        page1_title(pdf)
+        page2_loss_model(pdf)
+        page3_comparison(pdf)
+        page4_core_cladding(pdf, data)
+        page5_scaln(pdf, data)
+        page6_gaaln(pdf)
+        page7_tensor(pdf)
+        page8_notes(pdf)
+    print(f'wrote {out}')
+
+
+if __name__ == '__main__':
+    main()
