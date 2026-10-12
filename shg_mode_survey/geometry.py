@@ -65,6 +65,45 @@ def aln_core_loss_dB_per_m(wavelength_nm):
     return material_loss_dB_per_m(eval_index_equation(AlN_K_E_EQ, wavelength_nm), wavelength_nm)
 
 
+def k_from_loss_dB_per_m(loss_dB_per_m, wavelength_nm):
+    """Inverse of material_loss_dB_per_m -- the extinction coefficient k a bulk material would
+    need to produce this [dB/m] power loss at this wavelength. Reporting/plotting use only (e.g.
+    showing SH_ABSORPTION_CALIBRATED_DB_PER_CM on the same k axis as measured ellipsometry data in
+    build_assumptions_report.py) -- the simulation itself works in dB/m throughout, never needs
+    this converted back to k."""
+    k0 = 2 * np.pi / (wavelength_nm * 1e-9)
+    alpha_per_m = loss_dB_per_m * np.log(10.0) / 10.0
+    return alpha_per_m / (2 * k0)
+
+
+# Empirically-calibrated flat SH-band bulk absorption -- NOT from ellipsometry. AM187-LT6's
+# measured k_e implies ~100,000 dB/cm of SH-band AlN absorption for a representative crossing
+# (ridge h=350 w=500nm, TM00->TM04 -- the closest match in this project's dataset to real
+# fabricated/tested devices), but inverting this project's own loss-limited-efficiency model
+# (shg_physics.loss_limited_length) against REAL measured SH output (a fabricated device's ~200nW
+# best case / ~20nW typical floor, at 100mW pump power and a real 2mm interaction length, 10-50%
+# input-coupling efficiency unknown) bounds the actual SH loss to roughly 15-680 dB/cm depending
+# on the (unmeasured) coupling efficiency -- 3-4 orders of magnitude below the AM187 number. See
+# PLAN.md's 2026-10-12 "empirical SH-loss bound" entries for the full derivation.
+#
+# 100 dB/cm is the team's chosen round-number working value within that empirically-bounded
+# range (2026-10-12 decision) -- not a measurement of any specific physical mechanism, just a
+# placeholder pending either better coupling-efficiency data or new loss-specific measurements
+# (e.g. a cutback measurement on real device material). Confinement-weighted by geom.core_mask()
+# exactly like aln_core_loss_dB_per_m above (same reasoning: treat it as if it were a bulk
+# material property, even though its physical origin -- absorption, additional scattering not
+# captured by the native roughness model, or something else -- is genuinely unknown). Applies
+# ONLY to the SH band (215-235nm) -- never to pump -- since it was back-calculated purely from
+# SH output; see survey.py's bulk_absorption_loss for the SH-only gate.
+SH_ABSORPTION_CALIBRATED_DB_PER_CM = 100.0
+
+
+def sh_absorption_calibrated_dB_per_m(wavelength_nm):
+    """SH_ABSORPTION_CALIBRATED_DB_PER_CM converted to dB/m -- flat (wavelength-independent) by
+    construction, since it's a single round-number working value, not a fitted spectral shape."""
+    return SH_ABSORPTION_CALIBRATED_DB_PER_CM * 100.0
+
+
 def _scalar_index(value):
     """em.refractive_index() may return a scalar or [n_x, n_y, n_z]; take the largest."""
     arr = np.real(np.atleast_1d(np.asarray(value, dtype=complex)))

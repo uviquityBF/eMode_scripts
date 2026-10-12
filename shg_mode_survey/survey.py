@@ -167,13 +167,18 @@ def native_scattering(em, mode_idx, shapes=('core',)):
 def bulk_absorption_loss(geom, x, y, mode, wavelength_nm):
     """Confinement-weighted bulk-material absorption [dB/m] for one already-solved (lossless)
     mode, by first-order perturbation theory: Gamma (the mode's own power fraction in the lossy
-    region) times that material's bulk loss at this wavelength. Sums two independent regions --
-    the shell/strip (geom.lossy_mask, 0.0 if none defined) and, when geom.params['aln_lossy'] is
-    set, the AlN core itself (geo.aln_core_loss_dB_per_m, geom.core_mask) -- previously assumed
-    lossless everywhere; see PLAN.md's 2026-10-12 AlN k-wiring entry. Deliberately NOT done by
-    feeding shape(loss_dB_per_m=...) into EMode and re-solving -- TiO2's SH-band loss is large
-    enough that re-solving with it set was found to corrupt SH-mode re-identification (see
-    geometry.Loaded.lossy_mask's docstring); the same reasoning applies even more to the core."""
+    region) times that material's bulk loss at this wavelength. Sums up to three independent
+    terms -- the shell/strip (geom.lossy_mask, 0.0 if none defined); when
+    geom.params['aln_lossy'] is set, the AlN core's own measured absorption
+    (geo.aln_core_loss_dB_per_m, geom.core_mask); and when
+    geom.params['sh_absorption_calibrated'] is set AND wavelength_nm is in the SH band (< 300nm,
+    well clear of the 430-470nm pump band), a flat empirically-calibrated SH-only addition
+    (geo.sh_absorption_calibrated_dB_per_m -- see its docstring for how 100 dB/cm was chosen;
+    2026-10-12). All previously assumed lossless/zero; see PLAN.md's 2026-10-12 entries.
+    Deliberately NOT done by feeding shape(loss_dB_per_m=...) into EMode and re-solving -- TiO2's
+    SH-band loss is large enough that re-solving with it set was found to corrupt SH-mode
+    re-identification (see geometry.Loaded.lossy_mask's docstring); the same reasoning applies
+    even more to the core."""
     total = 0.0
     mask = geom.lossy_mask(x, y)
     if mask is not None:
@@ -185,6 +190,12 @@ def bulk_absorption_loss(geom, x, y, mode, wavelength_nm):
     if geom.params.get('aln_lossy', False):
         core_mask = geom.core_mask(x, y)
         bulk = geo.aln_core_loss_dB_per_m(wavelength_nm)
+        gamma = sp.power_fraction_in(mode, core_mask)
+        if not np.isnan(gamma):
+            total += gamma * bulk
+    if geom.params.get('sh_absorption_calibrated', False) and wavelength_nm < 300.0:
+        core_mask = geom.core_mask(x, y)
+        bulk = geo.sh_absorption_calibrated_dB_per_m(wavelength_nm)
         gamma = sp.power_fraction_in(mode, core_mask)
         if not np.isnan(gamma):
             total += gamma * bulk
