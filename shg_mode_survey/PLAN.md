@@ -1271,3 +1271,30 @@ NCE (pure mode-shape overlap, no z-dependence), loss-limited peak efficiency
 functions of disjoint inputs (transverse mode shape vs. propagation/attenuation), so changing the
 loss model structurally cannot reach eta. Content had to be trimmed twice to fit one page cleanly
 (verified by rendering, not estimated on paper -- the first two drafts ran off the bottom edge).
+
+### Field guide artifact updated; Simulation Study Plan recapped; next: run the studies (2026-10-12)
+
+User: update the field-guide artifact (stale since 2026-10-05) and give it a PDF twin like the
+other reports, recap the Simulation Study Plan given everything since, then start running the
+actual studies.
+
+**Field guide**: republished to the same URL (status table rewritten for ridge/loaded/hybrid/
+pedestal/materials/EMode-env; loss model section gained the AlN measurement/rejection/calibration
+story; new gotchas for the position='auto'-stacks-not-embeds bug and cross-machine binary export
+transfer via Drive-zip-then-filesystem-copy; EMode version bumped to v1.0.5; figures-of-merit
+section now points to build_assumptions_report.py's section 0 as canonical rather than risking a
+second drifting copy). New `build_field_guide_report.py` -> `runs/field_guide_report.pdf` is a PDF
+twin for the git-tracked record -- deliberately drops the artifact's operational sections (running
+a survey, notebook vs. hands-off) since those aren't useful as a static page, and the
+figures-of-merit theory, left to its one canonical home.
+
+**Simulation Study Plan**: added a standing "every new run launches with
+`sh_absorption_calibrated=True`" callout (page 1) and reinforced it at the two queued launch
+points (rows 4 and 6). Corrected the Ridge topology page's loss-comparison claim with the real,
+now-available calibrated numbers (median ~41,000x / best-to-best ~4,700x above `loaded` --
+confirms, with real data, what was previously just an assumption from before any AlN-loss work).
+
+**Next**: user's own words, "at that point I'd say we start running through the studies" --
+sequencing page's existing order stands (row 6 hybrid re-run first, already queued and blocked
+only on this plan's review; row 4 SiN rib-loaded second). Each batch gets its own check-in per
+established user direction -- not yet started as of this entry.
