@@ -46,6 +46,25 @@ def material_loss_dB_per_m(k, wavelength_nm):
     return alpha_per_m * 10.0 / np.log(10.0)
 
 
+# AlN's own intrinsic bulk absorption, previously assumed lossless everywhere. Extraordinary-axis
+# k_e only (not k_o) -- the axis d33 couples (Py = d33*Ey^2) and the larger of the two measured
+# values, so this is the conservative/dominant choice for the TM-polarized modes this survey
+# studies, not a field-direction-resolved split; see PLAN.md's 2026-10-12 "AlN anisotropy model"
+# decision. 3-Lorentzian fit to AM187-LT6 measured k_e (x in um) -- see
+# materials/fit_aln_measured_k.py -> materials/AlN_AM187_LT6_k_fit.json's k_equation_e.
+AlN_K_E_EQ = ('(0.450766/(1+((x-0.198721)/0.00610201)**2)'
+              '+0.0336577/(1+((x-0.233588)/0.00800000)**2)'
+              '+0.0152550/(1+((x-0.387876)/0.122966)**2))')
+
+
+def aln_core_loss_dB_per_m(wavelength_nm):
+    """AlN's own intrinsic bulk absorption [dB/m] at this wavelength, from AlN_K_E_EQ above. Not
+    confinement-weighted -- multiply by the mode's power fraction in geom.core_mask() (see
+    survey.py's bulk_absorption_loss / reprocess_run.py, same pattern as the shell/strip
+    lossy_bulk_loss_dB_per_m methods below)."""
+    return material_loss_dB_per_m(eval_index_equation(AlN_K_E_EQ, wavelength_nm), wavelength_nm)
+
+
 def _scalar_index(value):
     """em.refractive_index() may return a scalar or [n_x, n_y, n_z]; take the largest."""
     arr = np.real(np.atleast_1d(np.asarray(value, dtype=complex)))
