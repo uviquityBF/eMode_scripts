@@ -231,6 +231,35 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   team's own measured AlN ellipsometry data, not yet shared/pulled in -- likely the most directly
   relevant source once available, pending the pointer.
 
+  **2026-10-12, later same day: the team's own ellipsometry repo, cloned.** User pointed to
+  `github.com/uviquityBF/ellipsometry_data` (cloned to `C:\Users\Uviquity\Documents\GitHub\
+  ellipsometry_data`, i.e. a sibling of this repo, not inside it) -- 243 measured positions across
+  ~26 sample/wafer folders (sputtered AND epitaxial/MBE growth, spanning roughly a year of runs,
+  Jan-Aug 2026 per folder dates), each a real WVASE ellipsometry export with both fitted n(lambda)
+  equations (same functional form this project already uses, ready to drop into `core_eq_o`/
+  `core_eq_e`) and tabulated raw n/k data (the fitted equations are real-only, for EMode
+  compatibility -- k has to come from the raw `*-nk.txt` tables, not the fitted equation string).
+
+  Checked k at 225 nm across all 240 anisotropic positions directly from the raw data (not the
+  literature, not a cross-reference -- this project's own measured wafers): **k_e (extraordinary,
+  c-axis -- the Ey-aligned, d33-relevant polarization) is ~90x higher than k_o (ordinary) at the
+  median** (k_e median 0.078 vs k_o median 0.00087). This matters specifically because d33 couples
+  Py = d33 Ey^2 -- Ey is the extraordinary-axis field, so k_e, not k_o, is the physically relevant
+  absorption for this project's SHG mechanism, and every result so far has modeled AlN as having
+  **neither** (both axes exactly lossless). If k_e is really ~0.08 at 225 nm, that's comparable to
+  or larger than SiNx's own measured k there (~0.06-0.14, `fit_sinx_sellmeier.py`) -- i.e. AlN
+  itself could already be the dominant SH-band loss source in every family, not just the shell/
+  strip materials that have been getting all the attention.
+
+  Sample-to-sample spread is enormous and tracks growth process, same pattern as the literature
+  disagreement: `Sputter AlN-sapphire#1` positions reach k_e up to 0.41 (sputtered, highest);
+  several MOCVD/MBE-labeled positions sit near zero; one position (`AM190 new model 6.25.26`)
+  shows k_e = -0.025, unphysical (a negative absorption), almost certainly fit/measurement noise
+  at that specific wavelength rather than a real value -- flagged, not used. **Not resolved**:
+  which of the ~26 sample folders is representative of the AlN this project's actual devices will
+  use is a growth-process/fab decision outside this repo's own knowledge -- needs the user's call,
+  not picked here.
+
   These span ~4 orders of magnitude in k, entirely driven by material quality/growth method
   (single crystal vs epitaxial vs sputtered/amorphous) -- not a case where one literature value is
   simply "more accurate" than another. Picking wrong would scale pump-band bulk absorption by up
