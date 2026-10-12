@@ -68,7 +68,7 @@ CROSS_FIELDS = ['fingerprint', 'family', 'params', 'status', 'pump_id', 'pump_la
                 'delta_n_residual', 'eta_pct_per_W_cm2', 'A_shg_um2', 'overlap_shape',
                 'overlap_linear_emode', 'A_eff_pump_um2', 'A_eff_sh_um2',
                 'pump_scattering_dB_per_m', 'pump_absorption_dB_per_m',
-                'sh_scattering_dB_per_m', 'sh_absorption_dB_per_m',
+                'sh_scattering_dB_per_m', 'sh_absorption_dB_per_m', 'sh_calibrated_dB_per_m',
                 'pump_edge_ratio', 'sh_edge_ratio', 'sh_edge_ratio_screen',
                 'L_opt_mm', 'L_eff_mm', 'peak_efficiency_pct_per_W', 'cerenkov_allowed_any',
                 'eta_screen_pct_per_W_cm2', 'overlap_shape_screen', 'sh_label_screen',
@@ -167,18 +167,18 @@ def native_scattering(em, mode_idx, shapes=('core',)):
 def bulk_absorption_loss(geom, x, y, mode, wavelength_nm):
     """Confinement-weighted bulk-material absorption [dB/m] for one already-solved (lossless)
     mode, by first-order perturbation theory: Gamma (the mode's own power fraction in the lossy
-    region) times that material's bulk loss at this wavelength. Sums up to three independent
-    terms -- the shell/strip (geom.lossy_mask, 0.0 if none defined); when
-    geom.params['aln_lossy'] is set, the AlN core's own measured absorption
-    (geo.aln_core_loss_dB_per_m, geom.core_mask); and when
-    geom.params['sh_absorption_calibrated'] is set AND wavelength_nm is in the SH band (< 300nm,
-    well clear of the 430-470nm pump band), a flat empirically-calibrated SH-only addition
-    (geo.sh_absorption_calibrated_dB_per_m -- see its docstring for how 100 dB/cm was chosen;
-    2026-10-12). All previously assumed lossless/zero; see PLAN.md's 2026-10-12 entries.
-    Deliberately NOT done by feeding shape(loss_dB_per_m=...) into EMode and re-solving -- TiO2's
-    SH-band loss is large enough that re-solving with it set was found to corrupt SH-mode
-    re-identification (see geometry.Loaded.lossy_mask's docstring); the same reasoning applies
-    even more to the core."""
+    region) times that material's bulk loss at this wavelength. Sums two independent terms --
+    the shell/strip (geom.lossy_mask, 0.0 if none defined) and, when geom.params['aln_lossy'] is
+    set, the AlN core's own measured absorption (geo.aln_core_loss_dB_per_m, geom.core_mask).
+    Does NOT include the calibrated SH-only addition -- see calibrated_sh_loss below, kept as a
+    separate call so it's always storable as its own crossings.csv column
+    (sh_calibrated_dB_per_m) rather than merged invisibly into the total, after the AM187
+    retroactive-reprocessing exercise needed exactly this kind of separability and didn't have it
+    by default (2026-10-12). All previously assumed lossless/zero; see PLAN.md's 2026-10-12
+    entries. Deliberately NOT done by feeding shape(loss_dB_per_m=...) into EMode and re-solving
+    -- TiO2's SH-band loss is large enough that re-solving with it set was found to corrupt
+    SH-mode re-identification (see geometry.Loaded.lossy_mask's docstring); the same reasoning
+    applies even more to the core."""
     total = 0.0
     mask = geom.lossy_mask(x, y)
     if mask is not None:
@@ -193,12 +193,25 @@ def bulk_absorption_loss(geom, x, y, mode, wavelength_nm):
         gamma = sp.power_fraction_in(mode, core_mask)
         if not np.isnan(gamma):
             total += gamma * bulk
-    if geom.params.get('sh_absorption_calibrated', False) and wavelength_nm < 300.0:
-        core_mask = geom.core_mask(x, y)
-        bulk = geo.sh_absorption_calibrated_dB_per_m(wavelength_nm)
-        gamma = sp.power_fraction_in(mode, core_mask)
-        if not np.isnan(gamma):
-            total += gamma * bulk
+    return total
+
+
+def calibrated_sh_loss(geom, x, y, mode, wavelength_nm):
+    """The flat, empirically-calibrated 100 dB/cm SH-band addition alone
+    (geom.params['sh_absorption_calibrated'], geo.sh_absorption_calibrated_dB_per_m --
+    see its docstring for how the value was chosen, 2026-10-12), confinement-weighted by
+    geom.core_mask exactly like bulk_absorption_loss's terms. Returned separately (not folded
+    into bulk_absorption_loss) purely so refine_crossing can store it as its own column -- the
+    total used for the actual physics (loss_limited_length, peak_efficiency_pct_per_W,
+    sh_absorption_dB_per_m) still adds this in, same as before. 0.0 if the flag isn't set or
+    wavelength_nm isn't in the SH band (< 300nm, well clear of the 430-470nm pump band)."""
+    if not geom.params.get('sh_absorption_calibrated', False) or wavelength_nm >= 300.0:
+        return 0.0
+    core_mask = geom.core_mask(x, y)
+    gamma = sp.power_fraction_in(mode, core_mask)
+    if np.isnan(gamma):
+        return 0.0
+    return gamma * geo.sh_absorption_calibrated_dB_per_m(wavelength_nm)
     return total
 
 
@@ -469,6 +482,7 @@ def refine_crossing(em, geom, cfg, c, export_path):
     i_s = int(np.argmax(sims_s))
     scat_s = native_scattering(em, i_s, geom.scatter_shapes)
     bulk_s = bulk_absorption_loss(geom, x, y, sm[i_s], lam)
+    cal_s = calibrated_sh_loss(geom, x, y, sm[i_s], lam)
     try:
         lin = float(abs(em.overlap(profile_a='pumpx', mode_a=ip, profile_b='shx', mode_b=i_s)))
     except Exception:  # noqa: BLE001
@@ -487,7 +501,7 @@ def refine_crossing(em, geom, cfg, c, export_path):
              + bulk_p)
     abs_s = (sum(am.compute_mechanism_losses(mask, dx, y, sm[i_s]['Sz'],
                                              cfg['sh_absorption_mechanisms']).values())
-             + bulk_s)
+             + bulk_s + cal_s)
     L_opt, L_eff, peak = sp.loss_limited_length(eta, np.nan_to_num(scat_p) + abs_p,
                                                 np.nan_to_num(scat_s) + abs_s)
     cer = sp.cerenkov_flags(np_, geom.cerenkov_regions(em, lam))
@@ -509,6 +523,7 @@ def refine_crossing(em, geom, cfg, c, export_path):
         'A_eff_sh_um2': sp.intensity_effective_area_um2(sm[i_s], dA),
         'pump_scattering_dB_per_m': scat_p, 'pump_absorption_dB_per_m': abs_p,
         'sh_scattering_dB_per_m': scat_s, 'sh_absorption_dB_per_m': abs_s,
+        'sh_calibrated_dB_per_m': cal_s,
         'L_opt_mm': L_opt * 1e3, 'L_eff_mm': L_eff * 1e3,
         'peak_efficiency_pct_per_W': peak * 100.0,
         'cerenkov_allowed_any': any(f['allowed'] for f in cer),
