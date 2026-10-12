@@ -1057,8 +1057,39 @@ Plotted directly (not yet fit to a Sellmeier/damped-oscillator form) in the Inpu
 PDF's section 3, overlaid against the existing hardcoded (lossless) AlN curves for direct
 comparison: k_e ~0.04-0.05 at SH, ~0.012 at pump; k_o notably lower at both (~3-4x less). **Not
 yet wired into any simulation** -- `core_eq_o`/`core_eq_e` in `geometry.py` are unchanged, still
-real-valued. Next step (not yet done, needs a decision first): fit this position's n+k data to a
-damped-Sellmeier equation matching the `fit_sinx_sellmeier.py`/`fit_tio2_sellmeier.py` convention,
-then decide whether/how to wire real AlN absorption into the survey pipeline -- a change with
-potentially the largest impact of anything in this project so far, since AlN has been assumed
-lossless in every result to date.
+real-valued.
+
+### AlN k(lambda) fit from AM187-LT6, decoupled from n (2026-10-12)
+
+User question: given the hardcoded n equation is itself from real (if unidentified) measured
+data, and this study's focus isn't the precise phase-matching wavelength, keep hardcoded n for
+continuity, or switch fully to AM187 for n/k self-consistency? **User decision: "lets proceed with
+the hardcoded n and add in the k-value for AM187."**
+
+Built `materials/fit_aln_measured_k.py`: fits AM187-LT6's measured k_o/k_e (not n -- n stays the
+existing hardcoded `AlN_EQ_O`/`AlN_EQ_E`) as a sum of up to 3 bounded Lorentzian peaks,
+`k(x) = sum_j A_j/(1+((x-x0_j)/w_j)^2)`, deliberately NOT via the project's usual joint
+complex-eps damped-Sellmeier model (that form ties n and k together through a shared sqrt(eps),
+which would have pulled n along with k -- exactly what the decision above said not to do).
+Band-weighted (215-235nm x8, 430-470nm x4, matching the `N_BAND_WEIGHTS` convention already used
+in `fit_sinx_sellmeier.py`/`fit_tio2_sellmeier.py`) after a first 2-peak attempt left a real,
+visible gap in the 205-220nm sub-region (fit(215nm)=0.109 vs measured(216.4nm)=0.040) where the
+data dips between the steep short-wavelength edge and a broader defect-band hump; 3 peaks +
+band-weighting closed it. k_o's fit collapsed 2 of its 3 peaks to ~0 amplitude (that axis only has
+one real feature) -- those are dropped from the printed equation rather than kept at
+full-precision near-zero (`k_equation` skips any peak with A < 1e-4).
+
+Fitted values: k_o(215/225/235nm) = 0.0206/0.0092/0.0052, k_e(215/225/235nm) =
+0.0659/0.0442/0.0510; k_o(430/450/470nm) = 0.00015/0.00012/0.00011, k_e(430/450/470nm) =
+0.0140/0.0125/0.0108. RMS fit error: k_o 0.0110, k_e 0.0240 (both over the full 192.5-600nm fit
+range; dominated by the steep sub-200nm edge, not the bands that matter). Writes
+`materials/AlN_AM187_LT6_k_fit.json` (params, fit quality, `model_values` at the 6 band-edge
+wavelengths, and ready-to-use `emode_equation_complex_o`/`_e` = hardcoded real n + `1j*` fitted k,
+simple sum not sqrt(eps)) and `materials/AlN_AM187_LT6_k_fit.png` (data vs. fit, both axes,
+SH/pump bands shaded) for visual verification.
+
+**Still not wired into any simulation** -- this is the standalone fit artifact only, per the
+literal scope of "add in the k-value for AM187." Wiring real AlN absorption into
+`geometry.py`/`survey_config*.py` (and therefore into every family's SH/pump loss calculation) is
+deferred pending an explicit go-ahead -- flagged as potentially the largest-impact change in this
+project so far, since AlN has been assumed lossless in every result to date.
