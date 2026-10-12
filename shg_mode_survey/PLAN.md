@@ -1219,3 +1219,34 @@ calibration.
 (not the v1.0.0.0/v1.0.4 previously on file) when investigating pedestal re-solve cost -- user had
 updated it since the last check. Not yet re-tested whether this fixes the two bugs still open on
 v1.0.4 (complex-equation FDM crash; `add_material(loss=...)` not reaching modal loss).
+
+### Calibrated scenario folded into `aln_loss_report.pdf`; a real bug caught along the way (2026-10-12)
+
+`nce_decomposition.decompose()` gained `include_sh_calibrated` (default `False`, every existing
+caller unaffected) -- adds the calibrated absorption confinement-weighted by `sh_power_in_core`,
+which is already on every refined row, so this needed no field reprocessing at all (unlike
+`include_aln`). `build_aln_loss_report.py`'s title/scatter/ranking/delta-waterfall pages now
+compare lossless vs. this calibrated scenario as the headline (AM187 kept in data/notes for
+context only, not deleted). Effect is far more modest than AM187's, as expected: `ridge` drop
+factor 1.6x median/10.8x max (was 1.9e5x/1.5e7x); `loaded` ~1.0x (its TiO2 strip already dominated
+the SH loss budget, so +100 dB/cm barely registers -- a clean, independent confirmation of the
+"loaded already had a lossy strip" reasoning behind the original 100 dB/cm choice). Only 6/15 of
+the old top-15 fall out of the top 15 (was all 15).
+
+**Bug caught while building this** (verify-by-rendering caught it, not reasoning on paper): the
+delta-waterfall's `pump_loss_dB` segment was labeled "pinned at 0 -- calibrated absorption never
+touches pump," which is FALSE. The calibrated absorption's underlying `alpha_p` input really is
+never touched, but `pump_loss_dB` is evaluated AT `L_opt`, and `L_opt` shortens once SH loss rises
+-- so the term shifts indirectly even with `alpha_p` fixed (mean +0.7 dB, max +4.6 dB across the
+dataset, visibly non-zero in the rendered chart's orange segment). Fixed every "pinned at 0"/
+"untouched" claim describing the derived dB term (the claims about the raw `alpha_p` input itself
+being untouched remain true and were left as-is). The reconstruction identity itself was never
+wrong (still exact to ~1e-14 dB) -- only the English description of one term was.
+
+**Second bug caught the same way**: the reality-check page claimed the calibrated value's
+prediction at 100mW/2mm (1107 nW) was "comfortably inside the 20-200 nW empirical range" -- false,
+1107 nW is actually ABOVE the 200nW anchor. Fixed by computing the calibrated prediction across
+the full 10/25/50% coupling range (44 / 277 / 1107 nW) instead of just the pessimistic 50% case:
+tracks the benchtop "10s of nW typically" population well at low coupling, within ~1.4x of the
+200nW best case at 25% coupling -- the 50%-coupling over-prediction points to that device's true
+coupling being below 50%, not to 100 dB/cm being wrong.
