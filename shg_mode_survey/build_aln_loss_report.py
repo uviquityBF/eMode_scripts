@@ -247,6 +247,85 @@ def delta_waterfall_page(pdf, r, n_bars=14):
     plt.close(fig)
 
 
+def empirical_bound_page(pdf, r):
+    """Reality check (2026-10-12, user-supplied measurement): a real fabricated device (ridge,
+    h=350 w=500 nm, TM00->TM04 -- the closest match in this dataset to the user's "best results
+    around 500nm" description) measures SH output in this range under real pump conditions.
+    Inverting shg_physics's own P_SH = eta_SI * P_pump^2 * L_eff(L; a_p, a_s)^2 at the ACTUAL
+    fixed device length (not an idealized L_opt) for the SH loss that reproduces that output
+    gives a direct empirical upper bound on alpha_SH, independent of whether the AM187-LT6 k_e
+    value is trustworthy."""
+    import nce_decomposition as nd
+    from scipy.optimize import brentq
+
+    row = r[(r['geom_label'] == 'ridge h=350 w=500 sw=5') & (r['pump_label'] == 'TM00') &
+            (r['sh_label'] == 'TM04')].iloc[0]
+    eta_si = row['eta_pct_per_W_cm2'] * 100.0
+    alpha_p_native = row['pump_scattering_dB_per_m'] + row['pump_absorption_dB_per_m']
+    alpha_s_aln = row['sh_scattering_dB_per_m'] + row['sh_absorption_dB_per_m'] + row['aln_sh_loss_dB_per_m']
+    L = 2000e-6
+    P_pump = 0.100
+
+    def alpha_s_needed(P_SH_target_W):
+        def resid(alpha_s_db_m):
+            leff = nd.l_eff_at(L, alpha_p_native, alpha_s_db_m)
+            return eta_si * P_pump ** 2 * leff ** 2 - P_SH_target_W
+        return brentq(resid, 0.0, 5e8, xtol=1.0)
+
+    targets_nW = (20, 200)
+    bounds = {p: alpha_s_needed(p * 1e-9) for p in targets_nW}
+
+    fig = plt.figure(figsize=(11, 8.5))
+    fig.text(0.08, 0.92, 'Reality check: what SH loss is consistent with measured device output?',
+              fontsize=15, weight='bold', color=INK)
+    fig.text(0.08, 0.885,
+              'ridge h=350 w=500 nm, TM00→TM04 -- closest match to the measured device', fontsize=9,
+              color=INK_MUTED, family='monospace')
+
+    body = (
+        f"Given a real device's actual, fixed propagation length (not an optimized L_opt) and\n"
+        f"actual pump power reaching the waveguide, shg_physics.loss_limited_length's own model\n"
+        f"(P_SH = eta_SI * P_pump^2 * L_eff(L; alpha_p, alpha_s)^2) can be inverted for the SH-band\n"
+        f"loss that reproduces a measured SH output -- independent of whether any particular\n"
+        f"ellipsometry sample's k is trustworthy. Using this geometry's own simulated eta_SI and\n"
+        f"currently-modeled native pump loss ({alpha_p_native / 100:.1f} dB/cm, no AlN):\n"
+    )
+    fig.text(0.08, 0.83, body, fontsize=10.5, color=INK, va='top', linespacing=1.6)
+
+    y = 0.62
+    fig.text(0.08, y, 'PUMP POWER (IN WAVEGUIDE)', fontsize=7.5, color=INK_FAINT, weight='bold')
+    fig.text(0.37, y, 'INTERACTION LENGTH', fontsize=7.5, color=INK_FAINT, weight='bold')
+    fig.text(0.62, y, 'TARGET SH OUTPUT', fontsize=7.5, color=INK_FAINT, weight='bold')
+    fig.text(0.84, y, 'IMPLIED alpha_SH BOUND', fontsize=7.5, color=INK_FAINT, weight='bold')
+    y -= 0.03
+    for p_nw in targets_nW:
+        fig.text(0.08, y, '100 mW', fontsize=10.5, family='monospace', color=INK)
+        fig.text(0.37, y, '2000 um (2 mm)', fontsize=10.5, family='monospace', color=INK)
+        fig.text(0.62, y, f'{p_nw} nW', fontsize=10.5, family='monospace', color=INK)
+        fig.text(0.84, y, f'<= {bounds[p_nw] / 100:.0f} dB/cm', fontsize=10.5, family='monospace',
+                  weight='bold', color=COLOR_LOSSLESS)
+        y -= 0.035
+
+    fig.text(0.08, y - 0.03,
+              f"AM187-LT6 k_e implies {alpha_s_aln / 100:,.0f} dB/cm for this same crossing --\n"
+              f"{alpha_s_aln / bounds[20]:.0f}x to {alpha_s_aln / bounds[200]:.0f}x above what the "
+              "device's own measured output permits.", fontsize=10, color='#c9680e', weight='bold',
+              va='top', linespacing=1.5)
+    fig.text(0.08, y - 0.11,
+              "20 nW is the user's suggested representative floor (most devices clear at least\n"
+              "this much; 200 nW was closer to the best-observed case, shown for context). Pump\n"
+              "power is fixed at the 100 mW (50% of the 200 mW incident, the optimistic end of the\n"
+              "10-50% coupling-efficiency uncertainty) case specifically requested for this reality\n"
+              "check -- see the earlier scan (10/25/50% coupling) for the full sensitivity. This is\n"
+              "a bound, not a measurement of alpha_SH itself: it assumes the modeled eta_SI and\n"
+              "native pump loss for this geometry are correct, and that the real device isn't\n"
+              "compensating for higher SH loss some other way (e.g. a shorter effective interaction\n"
+              "length than the nominal 2 mm, imperfect mode matching reducing the EFFECTIVE eta).",
+              fontsize=9, color=INK_MUTED, va='top', linespacing=1.55)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def notes_page(pdf, r, runs):
     fig = plt.figure(figsize=(11, 8.5))
     fig.text(0.08, 0.92, 'Notes & provenance', fontsize=16, weight='bold', color=INK)
@@ -287,6 +366,7 @@ def main():
         scatter_page(pdf, r)
         ranking_page(pdf, r)
         delta_waterfall_page(pdf, r)
+        empirical_bound_page(pdf, r)
         notes_page(pdf, r, runs)
 
     print(f'wrote {out} ({len(r)} refined crossings, runs={runs})')
