@@ -33,6 +33,11 @@ sweep exists to find. Costs roughly 1.5x the SH-scan time per step; accepted giv
 whole point is not to miss that mode. sh_window_margin left at survey_config's default (0.10) --
 phase-matching crossings are by definition near-equal-n_eff, so margin isn't the limiting factor
 here, mode-count-per-step is.
+
+sh_absorption_calibrated=True added 2026-10-12: the standing SH-loss assumption for every new run
+from here on (geometry.sh_absorption_calibrated_dB_per_m, 100 dB/cm flat/confinement-weighted --
+see build_assumptions_report.py section 3b). Stored separately as sh_calibrated_dB_per_m in
+crossings.csv, not merged invisibly into sh_absorption_dB_per_m.
 """
 
 import json
@@ -54,7 +59,8 @@ SIN_WIDTH_VALUES = (700.0, 900.0, 1100.0, 1300.0, 1500.0)
 MIN_SHELL_MARGIN = 200.0  # nm, sin_width - w_core floor
 
 GEOMETRIES = [('hybrid', {'h_core': H_CORE, 'w_core': w, 'sin_width': sw, 'sin_height': SIN_HEIGHT,
-                          'shell_eq': SINX_SHELL_EQ, 'shell_loss_eq': SINX_SHELL_LOSS_EQ})
+                          'shell_eq': SINX_SHELL_EQ, 'shell_loss_eq': SINX_SHELL_LOSS_EQ,
+                          'sh_absorption_calibrated': True})
               for w in W_CORE_VALUES for sw in SIN_WIDTH_VALUES if sw >= w + MIN_SHELL_MARGIN]
 
 SMOKE = [GEOMETRIES[len(GEOMETRIES) // 2]]
