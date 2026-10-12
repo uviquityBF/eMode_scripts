@@ -1151,3 +1151,71 @@ misleading artifact of the lossless assumption). Exact 3-term dB delta decomposi
 can differ) shows the drop is dominated by `length_dB` (L_opt collapsing), not the direct loss-dB
 penalty terms themselves -- reconstructs the exact peak-efficiency ratio to ~1e-14 dB, verified
 numerically, same rigor as the original 5-term waterfall.
+
+### AM187 k_e rejected for SH loss; replaced with an empirically-calibrated 100 dB/cm (2026-10-12)
+
+User pushback on the headline finding: "ridge is not so much better than the others when including
+the SH band loss" -- checking the actual AlN-lossy numbers, `loaded`'s best crossing (2.29e-7 %/W)
+actually beats ridge's best (6.96e-8 %/W) by ~3.3x once AlN absorbs; medians are comparable. User
+declined adding this as a report callout ("i dont think its that significant actually").
+
+User then asked for the implied SH loss in dB/cm -- revealed a transcription bug in my first answer
+(wrote ~1,050 dB/cm instead of the correct ~105,600 dB/cm, a misread of the comma-formatted
+number). Corrected: bulk AlN (100% confinement) implies ~107,000-167,000 dB/cm across 215-235nm;
+confinement-weighted (actual simulated crossings, median ~91% core confinement) ~1e5 dB/cm median.
+
+**User: "I don't believe those k values."** Empirical pushback: real fabricated/tested devices
+produce ~200nW SH at best, ~10s of nW typically, under ~200mW incident pump (10-50% coupling,
+unmeasured) over ~2mm. User's own prior modeling heuristic: SH loss ~10x pump loss (scattering-
+driven assumption). Asked whether/how to bound SH loss from this empirical data.
+
+**Inversion method**: `shg_physics.loss_limited_length`'s own closed form,
+`P_SH = eta_SI * P_pump^2 * L_eff(L; alpha_p, alpha_s)^2`, inverted at the REAL fixed device length
+(2mm, not an idealized L_opt -- `nce_decomposition.l_eff_at`) for the geometry closest to the real
+device (`ridge h=350 w=500nm, TM00->TM04` -- also literally the top-ranked `ridge` crossing in the
+dataset, and matches the user's "best results around 500nm"). Verified the closed-form IS the exact
+analytic solution to the standard phase-matched, linearly-lossy, undepleted-pump coupled-amplitude
+SHG equations (direct numerical ODE integration matched to 4+ significant figures everywhere,
+including the rollover past L_opt the user specifically asked about from their own detailed
+simulations) -- not an approximation, and NOT naive L^2 growaway from a rollover.
+
+Result: using the geometry's own simulated `eta_SI` and native (non-AlN) pump loss, producing
+200nW/20nW at 100mW/2mm requires SH loss of only ~235/~679 dB/cm respectively -- **2-3 orders of
+magnitude below** the ~100,000 dB/cm AM187 implies. Scanning the full 10-50% coupling uncertainty:
+15-680 dB/cm (20nW target) to 15-235 dB/cm (200nW target) depending where true coupling falls.
+Separately verified SH-side EMode-native scattering IS already in the model throughout (not
+missing) -- `sh_scattering_dB_per_m`, already confinement-weighted; for `ridge` it already
+satisfies "SH scattering >= pump scattering" in 309/317 (97.5%) crossings (median ratio ~22x; the
+25 exceptions are mild, 0.67-0.78x, and specifically tied to TM10 pump pairings).
+
+**Decision: 100 dB/cm, confinement-weighted, SH-band only (215-235nm), ADDED on top of existing
+scattering** -- not a measurement of any specific mechanism (absorption vs. under-modeled
+scattering vs. something else all remain plausible), a round working number inside the empirically-
+bounded range. User's own reasoning for the choice: scattering alone (11.8 dB/cm at the validated
+h=350/w=500 point) under-explains the fabricated device's output once the full model is run
+forward (predicts ~7,137 nW at 100mW/2mm -- ~36x over the 200nW best case -- not an under-
+prediction as initially assumed; the lossless model was too OPTIMISTIC, not too pessimistic,
+confirmed by direct forward calculation before settling on 100 dB/cm). Confinement-weighted per
+user's explicit request (not flat/unweighted) -- same `geom.core_mask()` pattern as AlN's own
+absorption, so it only costs output for crossings that actually guide significant power through
+the core.
+
+Implementation: `geometry.SH_ABSORPTION_CALIBRATED_DB_PER_CM = 100.0` +
+`sh_absorption_calibrated_dB_per_m()`, wired into `survey.py`'s `bulk_absorption_loss()` as a third
+opt-in term (`geom.params['sh_absorption_calibrated']`), gated to `wavelength_nm < 300` so it never
+touches pump-band loss. Opt-in like `aln_lossy`, so existing/future lossless geometries'
+fingerprints are unaffected. `geometry.k_from_loss_dB_per_m` added (inverse of
+`material_loss_dB_per_m`) purely for plotting this dB/cm value on the same k axis as measured
+ellipsometry data.
+
+Documented in `build_assumptions_report.py`'s new section 3b (`page3b_sh_loss_calibration`): the
+derivation, the working value, and a log-scale plot overlaying the calibrated 100 dB/cm curve
+against AM187's measured k_e (and the existing AlN k panel on page 3, also switched to log scale
+for the same reason) -- visually ~1000x apart. Updated several stale "NOT YET WIRED into any
+simulation" claims on pages 1/2/3/7 that predated both the AM187 reprocessing work and this
+calibration.
+
+**Also discovered (tangential, corrected in memory):** this desktop's EMode was found to be v1.0.5
+(not the v1.0.0.0/v1.0.4 previously on file) when investigating pedestal re-solve cost -- user had
+updated it since the last check. Not yet re-tested whether this fixes the two bugs still open on
+v1.0.4 (complex-equation FDM crash; `add_material(loss=...)` not reaching modal loss).
