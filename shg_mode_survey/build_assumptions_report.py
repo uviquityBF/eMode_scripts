@@ -98,20 +98,26 @@ def page1_title(pdf):
         "1. Loss model — scattering + absorption mechanism assumptions, with citations",
         "2. Pump-loss assumption comparison (code vs. the Loss Model Summary memo)",
         "3. Core/cladding material dispersion — AlN, SiNx, TiO2",
+        "3b. SH-loss calibration — why AlN's measured k isn't used, what is, and why",
         "4. ScAlN composition sweep — index ready, k/d33 open",
         "5. GaAlN — not yet sourced (status page)",
         "6. Nonlinear (chi(2)) tensor summary",
         "7. Notes & provenance",
     ]
     text_block(fig, 0.08, y, contents, fontsize=10)
-    y -= 0.22
+    y -= 0.25
 
     fig.text(0.08, y, 'STATUS AT TIME OF WRITING', fontsize=9, weight='bold', color=WARN)
     y -= 0.03
     status = [
         "AlN, SiNx, TiO2 dispersion: committed, wired into at least one geometry family.",
-        "AlN's own UV k(lambda): a real MOCVD-measured candidate is now picked (AM187-LT6, section 3) --",
-        "  k_e >> k_o, ~0.04-0.05 at SH, ~0.012 at pump -- but NOT YET WIRED into any simulation.",
+        "AlN's own UV k(lambda): a real MOCVD-measured candidate was picked (AM187-LT6, section 3) --",
+        "  k_e >> k_o, ~0.04-0.05 at SH, ~0.012 at pump. Wired as an opt-in mechanism (geom.params",
+        "  ['aln_lossy']) and used to REPROCESS completed runs, but NOT adopted as the working",
+        "  assumption at either band: its SH-band implication (~100,000 dB/cm) was checked against",
+        "  real device output and found 3-4 orders of magnitude too high (section 3b). SH loss",
+        "  instead uses a flat, empirically-calibrated 100 dB/cm placeholder; pump loss stays at its",
+        "  prior native (scattering + interface-defect mechanism) value, unchanged.",
         "ScAlN: index fitted (8 compositions, Baumler 2019). UV k and chi(2) d33/d31 vs. Sc fraction",
         "  are disputed between sputtered and MBE literature — see section 6.",
         "GaAlN: no dispersion fit exists yet. Section 5 documents the gap, not a fix.",
@@ -144,9 +150,11 @@ def page2_loss_model(pdf):
         "decaying into the core (exponential or step) over a penetration depth L (nm). Modal loss is",
         "the Poynting-flux-weighted average of that profile over the mode. Currently active in",
         "survey_config.py's pump_absorption_mechanisms (4 of them; sh_absorption_mechanisms is empty",
-        "— AlN itself is assumed to contribute ZERO absorption at the SH wavelength):",
+        "— this interface-defect model contributes ZERO absorption at the SH wavelength). SH loss's",
+        "own flat, confinement-weighted 100 dB/cm calibrated absorption is a SEPARATE mechanism, not",
+        "part of this interface-defect list -- see section 3b:",
     ], fontsize=9.5, color=INK_MUTED)
-    y -= 0.14
+    y -= 0.20
 
     rows = [
         ('Dislocations', '2000 dB/m, exp, 40nm', 'Chen et al., Opt. Express 27(12), 17262 (2019) — but',
@@ -238,10 +246,17 @@ def precompute_dispersion_data():
 
     aln_meas = pd.read_csv('materials/AlN_AM187_LT6_measured_nk.csv')
 
+    # Equivalent k of geo.SH_ABSORPTION_CALIBRATED_DB_PER_CM (flat 100 dB/cm) -- what's ACTUALLY
+    # used for SH-band loss when geom.params['sh_absorption_calibrated'] is set (see survey.py's
+    # bulk_absorption_loss). Only meaningful/applied in the SH band (215-235nm) -- plotted only
+    # there, not extrapolated across lam_core like the other curves.
+    lam_sh_only = np.linspace(215.0, 235.0, 50)
+    sh_cal_k = [geo.k_from_loss_dB_per_m(geo.sh_absorption_calibrated_dB_per_m(l), l) for l in lam_sh_only]
+
     return {
         'lam_core': lam_core, 'n_o': n_o, 'n_e': n_e, 'sinx_n': sinx_n, 'sinx_k': sinx_k,
         'tio2_n': tio2_n, 'tio2_k': tio2_k, 'lam_sc': lam_sc, 'sc_curves': sc_curves, 'sc_meta': sc,
-        'aln_meas': aln_meas,
+        'aln_meas': aln_meas, 'lam_sh_only': lam_sh_only, 'sh_cal_k': sh_cal_k,
     }
 
 
@@ -251,6 +266,7 @@ def page4_core_cladding(pdf, data):
     sinx_n, sinx_k = data['sinx_n'], data['sinx_k']
     tio2_n, tio2_k = data['tio2_n'], data['tio2_k']
     aln_m = data['aln_meas']
+    lam_sh_only, sh_cal_k = data['lam_sh_only'], data['sh_cal_k']
     fig, axs = plt.subplots(1, 2, figsize=(11, 5.2))
     fig.suptitle('3. Core/cladding material dispersion', fontsize=14, weight='bold', x=0.08, ha='left')
 
@@ -271,27 +287,95 @@ def page4_core_cladding(pdf, data):
     style_ax(ax)
 
     ax = axs[1]
-    ax.plot(aln_m['wavelength_nm'], aln_m['k_o'], color='#C23A73', lw=1.8, label='AlN k_o (measured)')
-    ax.plot(aln_m['wavelength_nm'], aln_m['k_e'], color='#C23A73', ls='--', lw=1.8, label='AlN k_e (measured)')
+    ax.plot(aln_m['wavelength_nm'], aln_m['k_o'], color='#C23A73', lw=1.8, alpha=0.6, label='AlN k_o (measured, AM187-LT6)')
+    ax.plot(aln_m['wavelength_nm'], aln_m['k_e'], color='#C23A73', ls='--', lw=1.8, alpha=0.6, label='AlN k_e (measured, AM187-LT6)')
     ax.plot(lam, sinx_k, color='#009E73', label='SiNx')
     ax.plot(lam, tio2_k, color='#D55E00', label='TiO2')
-    ax.axhline(0, color=BORDER, lw=0.8)
+    ax.plot(lam_sh_only, sh_cal_k, color=INK, lw=2.6, solid_capstyle='round',
+            label='SH absorption, calibrated — 100 dB/cm (USED in simulation)')
+    ax.set_yscale('log')
     shade_bands(ax)
-    ax.set_xlabel('wavelength [nm]'); ax.set_ylabel('k')
-    ax.set_title('AlN hardcoded equation is still k=0 everywhere — these measured curves are NOT\n'
-                'yet wired into any simulation, see section 6', fontsize=8, color=WARN)
-    ax.legend(fontsize=7, frameon=False)
+    ax.set_xlabel('wavelength [nm]'); ax.set_ylabel('k  (log scale)')
+    ax.set_ylim(1e-5, 3.0)
+    ax.set_title('AlN\'s measured k (AM187-LT6) is NOT used for SH loss — it implied ~100,000 dB/cm,\n'
+                '3-4 orders of magnitude above what fabricated devices actually permit (section 3b)',
+                fontsize=8, color=WARN)
+    ax.legend(fontsize=6.5, frameon=False, loc='lower right')
     style_ax(ax)
 
     fig.tight_layout(rect=(0, 0.06, 1, 0.91))
     fig.text(0.08, 0.02,
               "AlN measured curves: sample AM187 (MOCVD, new model, 6.4.26), position LT(6) -- the lowest, "
               "non-negative k_e among all MOCVD-labeled positions in the team's own ellipsometry\n"
-              "repo (github.com/uviquityBF/ellipsometry_data), selected 2026-10-12. k_e (extraordinary/"
-              "c-axis, the Ey-aligned polarization that drives d33) is ~3-4x k_o at both bands shown -- "
-              "see section 6.",
+              "repo (github.com/uviquityBF/ellipsometry_data), selected 2026-10-12. Shown for reference only "
+              "(right panel, log scale) -- NOT what the simulation actually uses for SH loss; see section 3b.",
               fontsize=7.5, color=INK_FAINT)
     pdf.savefig(fig)
+    plt.close(fig)
+
+
+def page3b_sh_loss_calibration(pdf, data):
+    lam_sh_only, sh_cal_k = data['lam_sh_only'], data['sh_cal_k']
+    aln_m = data['aln_meas']
+    fig = plt.figure(figsize=(11, 8.5))
+    fig.text(0.08, 0.94, '3b. What SH loss the simulation actually uses', fontsize=16, weight='bold', color=INK)
+    y = 0.90
+
+    body = [
+        "AlN's own measured k_e (AM187-LT6, section 3) implies roughly 100,000 dB/cm of SH-band",
+        "absorption for a representative crossing (ridge h=350 w=500nm, TM00->TM04 -- the closest",
+        "match in this project's dataset to real fabricated/tested devices). That number is NOT",
+        "used -- it was checked against real device measurements and found to be 3-4 orders of",
+        "magnitude too high.",
+    ]
+    text_block(fig, 0.08, y, body, fontsize=10.5)
+    y -= 0.16
+
+    fig.text(0.08, y, 'How the empirical bound was derived (2026-10-12)', fontsize=10.5, weight='bold', color=INK)
+    y -= 0.03
+    body2 = [
+        "A fabricated device (same geometry) measures ~200 nW SH output at best, ~10s of nW",
+        "typically, under ~200 mW incident pump power (10-50% coupling efficiency into the",
+        "waveguide, unmeasured) over a ~2 mm interaction length. Inverting this project's own",
+        "loss-limited-efficiency model (shg_physics.loss_limited_length, evaluated at the real",
+        "fixed 2mm length -- not an idealized optimum) for the SH loss consistent with that output",
+        "bounds alpha_SH to roughly 15-680 dB/cm across the coupling-efficiency uncertainty --",
+        "nowhere near the ~100,000 dB/cm the ellipsometry sample implies.",
+    ]
+    text_block(fig, 0.08, y, body2, fontsize=9.5, color=INK_MUTED)
+    y -= 0.21
+
+    fig.text(0.08, y, 'Working value: 100 dB/cm, confinement-weighted (2026-10-12 decision)', fontsize=10.5,
+              weight='bold', color=INK)
+    y -= 0.03
+    body3 = [
+        "100 dB/cm is a round number inside that empirically-bounded range -- not a measurement of",
+        "any specific physical mechanism (absorption, under-modeled scattering, or something else",
+        "is equally plausible as the real cause). Applied as geometry.sh_absorption_calibrated_dB_per_m,",
+        "confinement-weighted by the mode's power fraction in the AlN core exactly like AlN's own",
+        "absorption would be (geom.core_mask) -- see survey.py's bulk_absorption_loss. Flat across",
+        "the SH band (215-235nm) by construction, since it's a single working value rather than a",
+        "fitted spectral shape. Applies ONLY to SH loss, never to pump -- it was back-calculated",
+        "purely from SH output. EMode-native sidewall-roughness scattering at SH (already in the",
+        "model throughout, unaffected by any of this -- see section 1) is ADDED on top, not replaced.",
+    ]
+    text_block(fig, 0.08, y, body3, fontsize=9.5, color=INK_MUTED)
+    y -= 0.29
+
+    ax = fig.add_axes((0.1, 0.06, 0.8, y - 0.06))
+    ax.plot(aln_m['wavelength_nm'], aln_m['k_e'], color='#C23A73', ls='--', lw=1.5, alpha=0.5,
+            label='AlN k_e (measured, AM187-LT6) — NOT used')
+    ax.plot(lam_sh_only, sh_cal_k, color=INK, lw=2.6, solid_capstyle='round',
+            label='100 dB/cm calibrated — USED for SH loss')
+    ax.set_yscale('log')
+    ax.axvspan(215, 235, color='#eda100', alpha=0.12, lw=0)
+    ax.set_xlim(195, 245)
+    ax.set_xlabel('wavelength [nm]'); ax.set_ylabel('k  (log scale)')
+    ax.set_title('~1000x gap between the measured sample and what\'s actually used', fontsize=9.5, color=INK)
+    ax.legend(fontsize=8, frameon=False, loc='center right')
+    style_ax(ax)
+    pdf.savefig(fig)
+    plt.close(fig)
     plt.close(fig)
 
 
@@ -413,14 +497,26 @@ def page8_notes(pdf):
         "139568, 2022), materials/fit_tio2_sellmeier.py (Siefke et al., Adv. Opt. Mater. 4, 1780,",
         "2016), materials/fit_baumler_sellmeier.py (Baumler et al., J. Appl. Phys. 126, 045715,",
         "2019, digitized). AlN o/e equations hardcoded in geometry.py (AlN_EQ_O/AlN_EQ_E) --",
-        "real-valued, lossless; not yet updated to use the measured data below.",
+        "real-valued, lossless; deliberately kept unchanged for continuity with prior results",
+        "(2026-10-12 decision) rather than switched to the measured n below -- see section 3b for",
+        "where k (a separate, independent addition) is actually used instead.",
         "",
         "AlN measured n/k: materials/AlN_AM187_LT6_measured_nk.csv, exported 2026-10-12 from",
         "github.com/uviquityBF/ellipsometry_data (a sibling repo, cloned to ..\\ellipsometry_data,",
         "not inside this one) -- sample AM187 (MOCVD, new model, 6.4.26), wafer position LT(6),",
         "picked as the lowest non-negative k_e among all MOCVD-labeled positions in that repo's",
-        "catalog (240 anisotropic positions checked). Raw WVASE ellipsometry export, not yet fit",
-        "to a Sellmeier/damped-oscillator equation -- plotted directly in section 3.",
+        "catalog (240 anisotropic positions checked). Raw WVASE ellipsometry export; k_e fit",
+        "separately to a 3-Lorentzian form (materials/fit_aln_measured_k.py, decoupled from n) for",
+        "simulation use -- geometry.AlN_K_E_EQ / aln_core_loss_dB_per_m.",
+        "",
+        "SH-loss calibration (section 3b): geometry.SH_ABSORPTION_CALIBRATED_DB_PER_CM = 100, chosen",
+        "2026-10-12 against real fabricated-device measurements (user-supplied, not a literature or",
+        "ellipsometry source) -- ~200nW best-case / ~10s of nW typical SH output, ~200mW incident",
+        "pump power (10-50% coupling efficiency, unmeasured), ~2mm interaction length, ridge",
+        "h=350 w=500nm geometry (closest dataset match). Derivation: inverting",
+        "shg_physics.loss_limited_length at the real fixed device length for the SH loss consistent",
+        "with that output. See PLAN.md's 2026-10-12 \"empirical SH-loss bound\" entries for the full",
+        "numeric derivation (per-coupling-scenario table) this report's section 3b summarizes.",
         "",
         "Pump-loss comparison: compare_pump_loss_assumptions.py, computed from trial_grid's already-",
         "exported TM00 pump fields -- no new EMode calls. Re-run that script directly to regenerate",
@@ -442,6 +538,7 @@ def main():
         page2_loss_model(pdf)
         page3_comparison(pdf)
         page4_core_cladding(pdf, data)
+        page3b_sh_loss_calibration(pdf, data)
         page5_scaln(pdf, data)
         page6_gaaln(pdf)
         page7_tensor(pdf)
