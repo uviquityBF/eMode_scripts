@@ -993,3 +993,18 @@ Added as a new page (`waterfall_page`) in `build_subfigure_report.py`: one stack
 geometry (best crossing by eta, top 14 by peak efficiency), positive segments up / negative down
 from 0, a marker confirming each bar's segments sum to its total. `runs/pedestal_subfigure_report.pdf`
 regenerated with it.
+
+### Simulation Study Plan PDF (2026-10-12)
+
+`build_study_plan_report.py` -> `runs/simulation_study_plan.pdf` (7 pages): documents the 10-row
+geometry x material design matrix before any of it runs -- the matrix table (with the `h_A` column
+added per user request, and an honest `0 -> TBD*` for the embedded topologies since `h_A` is only
+wired up in `loaded` today), then one page per underlying cross-section topology (Ridge,
+Rib-loaded, Embedded-guided, Embedded-Cerenkov) with a diagram and which matrix rows use it, then
+a proposed sequencing page. Real cross-section diagrams for the three topologies that already
+exist, pulled straight from `geometry.py`'s own mask functions via `plot_geometry.py` (same
+families already built/verified, not re-drawn by hand); a hand-built schematic for the one that
+doesn't (embedded-Cerenkov, recreating the user's own sketch in this report's visual language).
+
+Explicitly states the matrix is not a green light to run all ten rows unsupervised -- user
+direction, 2026-10-12: each batch gets its own check-in.
