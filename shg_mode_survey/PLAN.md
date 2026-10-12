@@ -1093,3 +1093,61 @@ literal scope of "add in the k-value for AM187." Wiring real AlN absorption into
 `geometry.py`/`survey_config*.py` (and therefore into every family's SH/pump loss calculation) is
 deferred pending an explicit go-ahead -- flagged as potentially the largest-impact change in this
 project so far, since AlN has been assumed lossless in every result to date.
+
+### AlN k wired into the loss budget, additively; pedestal dropped; headline finding (2026-10-12)
+
+User: "I want to move ahead with getting the k data into the simulation for AlN. However, i dont
+want to lose the SH-loss-free results." Decided (via AskUserQuestion): k_e only (not
+field-direction-resolved against k_o -- matches d33's Ey coupling and the existing isotropic-
+material precedent), and reprocess every already-completed geometry rather than starting with one
+family.
+
+**Implementation** (not via EMode re-solve -- re-solving with AlN's own core loss set risks the
+exact SH-mode-reidentification corruption already documented for TiO2's shell loss, more so since
+AlN *is* the core): `geometry.aln_core_loss_dB_per_m(wavelength_nm)` (Beer-Lambert from the
+AM187-LT6 k_e fit) wired into `survey.py`'s `bulk_absorption_loss()` as a second confinement-
+weighted term, gated behind an opt-in `geom.params['aln_lossy']` flag so it's absent (not merely
+False) from params for every existing/future lossless geometry -- fingerprints of all prior runs
+are completely unaffected, no risk of accidentally forcing a redo. For already-completed runs,
+extended `reprocess_run.py` to add `aln_pump_loss_dB_per_m`/`aln_sh_loss_dB_per_m` columns computed
+purely from each refined crossing's existing field export -- discovered this needs no EMode
+re-solve at all, since `power_fraction_in(mode, core_mask)` only needs the exported Sz/mask, both
+already saved per refined crossing. Deliberately additive: the original
+`pump_absorption_dB_per_m`/`sh_absorption_dB_per_m`/`peak_efficiency_pct_per_W` columns are
+untouched (preserves the lossless baseline exactly, in the same row); AlN-lossy totals are computed
+downstream (`nce_decomposition.decompose(row, include_aln=True)`).
+
+**Export availability was the real bottleneck, not the physics.** `runs/*/exports/` is gitignored,
+so field exports don't travel via git between the two machines. On this desktop: `loaded_sweep1`
+96/96, `loaded_smoke` 1/1, `trial_grid` 140/280, `wide_window` 24/48, **pedestal family 0/416**
+(zero on this machine). User uploaded the laptop's `runs/` to Google Drive; the MCP Drive tools
+can't bulk-transfer ~2.4 MB/file x ~170 files (each landing as base64 text in-context -- totally
+impractical at that scale, no mounted Drive filesystem on this machine either) -- resolved by
+having the user download the Drive folder as a zip via the browser instead and copying files over
+the local filesystem. That filled `wide_window` to 48/48 and `trial_grid` to 269/280 (still
+missing 11) -- but **confirmed the laptop never had pedestal's exports either** (not an upload
+gap): pedestal reprocessing would need a genuine from-scratch re-solve, estimated at ~9.5 hours of
+EMode time (real recorded `geometries.csv` timing: pedestal1 45.6 min / 6 geoms, pedestal_sweep1
+4.9 hr / 24 geoms, pedestal_vertical1 3.85 hr / 22 geoms) for the honest full redo, since
+`survey.py`'s resume logic would just skip already-`'ok'` geometries rather than cheaply
+backfilling just the known crossings. **User: too long, drop it** -- pedestal stays AlN-lossless
+only (consistent with it being the legacy stacked geometry already superseded by the corrected
+embedded `hybrid` family).
+
+Also found while investigating the desktop's re-solve risk: this desktop's EMode is now **v1.0.5**
+(user had updated it since the v1.0.0.0/v1.0.4 investigation) -- see
+[[emode_desktop_version_gap]]/the memory file, updated.
+
+**Headline finding** (`build_aln_loss_report.py` -> `runs/aln_loss_report.pdf`, 413 refined
+crossings across `loaded_sweep1`+`trial_grid`+`wide_window`): NCE (`eta_pct_per_W_cm2`) is exactly
+unchanged by construction (loss-independent); only loss-limited peak efficiency moves. The `ridge`
+family (bare AlN, no shell/strip loss at all before this) collapses hardest -- median drop factor
+1.9e5x, max 1.5e7x -- because it previously had essentially nothing in its SH-loss budget; `loaded`
+(already had a lossy TiO2 strip) drops far less in relative terms -- median 3x, max 976x. All 15 of
+the old top-15-by-lossless-peak-efficiency crossings fall out of the top 15 once AlN absorbs (every
+one was `ridge`, previously "best" partly *because* it had no other loss masking it -- a
+misleading artifact of the lossless assumption). Exact 3-term dB delta decomposition
+(`nce_decomposition.decompose(row, include_aln=...)`, only `sh_loss_dB`/`pump_loss_dB`/`length_dB`
+can differ) shows the drop is dominated by `length_dB` (L_opt collapsing), not the direct loss-dB
+penalty terms themselves -- reconstructs the exact peak-efficiency ratio to ~1e-14 dB, verified
+numerically, same rigor as the original 5-term waterfall.

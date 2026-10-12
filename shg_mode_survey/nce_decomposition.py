@@ -67,14 +67,29 @@ def l_eff_at(L_m, alpha_p_db_m, alpha_s_db_m):
     return (np.exp(-a_p * L_m) - np.exp(-a_s * L_m / 2)) / D
 
 
-def decompose(row):
+def decompose(row, include_aln=False):
     """row: a dict/Series with eta_pct_per_W_cm2, overlap_shape, pump_scattering_dB_per_m,
     pump_absorption_dB_per_m, sh_scattering_dB_per_m, sh_absorption_dB_per_m (all already in
-    crossings.csv -- no EMode/field data needed, pure post-processing of stored results)."""
+    crossings.csv -- no EMode/field data needed, pure post-processing of stored results).
+
+    include_aln=True adds aln_pump_loss_dB_per_m / aln_sh_loss_dB_per_m (AlN's own intrinsic
+    bulk absorption from the AM187-LT6 k_e fit, see geometry.aln_core_loss_dB_per_m and
+    reprocess_run.py; 0.0/absent if a row hasn't been reprocessed with AlN loss) on top of the
+    existing loss terms -- default False reproduces the exact pre-2026-10-12 AlN-lossless
+    numbers unchanged, for every existing caller. shape_dB and field_dB are identical either way
+    (eta_pct_per_W_cm2/overlap_shape don't depend on loss at all); only sh_loss_dB, pump_loss_dB
+    and length_dB (via L_opt) can differ between the two calls on the same row."""
     eta_si = row['eta_pct_per_W_cm2'] * 100.0  # invert eta_to_pct_per_W_cm2
     overlap_shape = max(row['overlap_shape'], 1e-12)
     pump_loss = row.get('pump_scattering_dB_per_m', 0.0) + row.get('pump_absorption_dB_per_m', 0.0)
     sh_loss = row.get('sh_scattering_dB_per_m', 0.0) + row.get('sh_absorption_dB_per_m', 0.0)
+    if include_aln:
+        # NaN (not reprocessed for this row) must become 0.0, not propagate -- `or 0.0` would NOT
+        # catch it (NaN is truthy), so this needs an explicit isnan check.
+        aln_pump = row.get('aln_pump_loss_dB_per_m', 0.0)
+        aln_sh = row.get('aln_sh_loss_dB_per_m', 0.0)
+        pump_loss += 0.0 if aln_pump is None or np.isnan(aln_pump) else aln_pump
+        sh_loss += 0.0 if aln_sh is None or np.isnan(aln_sh) else aln_sh
 
     l_opt, l_eff_both, peak_si = loss_limited_length(eta_si, pump_loss, sh_loss, L_MAX_M)
     l_eff_sh_only = l_eff_at(l_opt, 0.0, sh_loss)
