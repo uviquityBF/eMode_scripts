@@ -51,6 +51,7 @@ total_dB = shape_dB + field_dB + sh_loss_dB + pump_loss_dB + length_dB
 """
 import numpy as np
 
+import geometry as geo
 from shg_physics import db_per_m_to_per_m, loss_limited_length
 
 L_MAX_M = 0.2  # matches loss_limited_length's own default search ceiling
@@ -67,7 +68,7 @@ def l_eff_at(L_m, alpha_p_db_m, alpha_s_db_m):
     return (np.exp(-a_p * L_m) - np.exp(-a_s * L_m / 2)) / D
 
 
-def decompose(row, include_aln=False):
+def decompose(row, include_aln=False, include_sh_calibrated=False):
     """row: a dict/Series with eta_pct_per_W_cm2, overlap_shape, pump_scattering_dB_per_m,
     pump_absorption_dB_per_m, sh_scattering_dB_per_m, sh_absorption_dB_per_m (all already in
     crossings.csv -- no EMode/field data needed, pure post-processing of stored results).
@@ -75,10 +76,19 @@ def decompose(row, include_aln=False):
     include_aln=True adds aln_pump_loss_dB_per_m / aln_sh_loss_dB_per_m (AlN's own intrinsic
     bulk absorption from the AM187-LT6 k_e fit, see geometry.aln_core_loss_dB_per_m and
     reprocess_run.py; 0.0/absent if a row hasn't been reprocessed with AlN loss) on top of the
-    existing loss terms -- default False reproduces the exact pre-2026-10-12 AlN-lossless
-    numbers unchanged, for every existing caller. shape_dB and field_dB are identical either way
+    existing loss terms. REJECTED as the working SH-loss assumption 2026-10-12 -- its SH-band
+    implication (~100,000 dB/cm) was checked against real fabricated-device output and found 3-4
+    orders of magnitude too high; see include_sh_calibrated below and PLAN.md.
+
+    include_sh_calibrated=True adds geometry.SH_ABSORPTION_CALIBRATED_DB_PER_CM (100 dB/cm, flat,
+    2026-10-12 working value), confinement-weighted by row['sh_power_in_core'] -- already in every
+    refined row, no reprocessing/field export needed, unlike include_aln. SH-band only, never
+    added to pump_loss. This is the current working assumption for SH loss.
+
+    Both default False, reproducing the exact pre-2026-10-12 AlN-lossless numbers unchanged for
+    every existing caller. shape_dB and field_dB are identical in every scenario
     (eta_pct_per_W_cm2/overlap_shape don't depend on loss at all); only sh_loss_dB, pump_loss_dB
-    and length_dB (via L_opt) can differ between the two calls on the same row."""
+    and length_dB (via L_opt) can differ between calls on the same row."""
     eta_si = row['eta_pct_per_W_cm2'] * 100.0  # invert eta_to_pct_per_W_cm2
     overlap_shape = max(row['overlap_shape'], 1e-12)
     pump_loss = row.get('pump_scattering_dB_per_m', 0.0) + row.get('pump_absorption_dB_per_m', 0.0)
@@ -90,6 +100,10 @@ def decompose(row, include_aln=False):
         aln_sh = row.get('aln_sh_loss_dB_per_m', 0.0)
         pump_loss += 0.0 if aln_pump is None or np.isnan(aln_pump) else aln_pump
         sh_loss += 0.0 if aln_sh is None or np.isnan(aln_sh) else aln_sh
+    if include_sh_calibrated:
+        gamma_sh = row.get('sh_power_in_core', 0.0)
+        gamma_sh = 0.0 if gamma_sh is None or np.isnan(gamma_sh) else gamma_sh
+        sh_loss += gamma_sh * (geo.SH_ABSORPTION_CALIBRATED_DB_PER_CM * 100.0)
 
     l_opt, l_eff_both, peak_si = loss_limited_length(eta_si, pump_loss, sh_loss, L_MAX_M)
     l_eff_sh_only = l_eff_at(l_opt, 0.0, sh_loss)
