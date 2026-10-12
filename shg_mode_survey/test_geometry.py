@@ -60,7 +60,9 @@ def test_region_masks_tile_the_cross_section():
     for fam, params in (('ridge', {'h_core': 350.0, 'w_core': 400.0}),
                         ('loaded', {'t_film': 354.0, 'etch_depth': 0.0, 'h_s': 70.0, 'w_s': 500.0}),
                         ('hybrid', {'h_core': 555.0, 'w_core': 730.0, 'sin_width': 1250.0,
-                                    'sin_height': 750.0})):
+                                    'sin_height': 750.0}),
+                        ('pedestal', {'h_core': 555.0, 'w_core': 730.0, 'sin_width': 1250.0,
+                                      'sin_height': 750.0})):
         g = geo.make_geometry(fam, params)
         regions = g.region_masks(x, y)
         total = sum(mask.astype(int) for mask, _ in regions.values())
@@ -94,6 +96,26 @@ def test_hybrid_core_embedded_in_shell():
     assert abs(loss - geo.material_loss_dB_per_m(0.5, 225.0)) < 1e-6 * loss
     print(f"hybrid core/shell OK: core area frac={core.mean():.3f}, shell area frac="
           f"{shell.mean():.3f}, bulk_loss(225nm)={loss:.3e} dB/m")
+
+
+def test_pedestal_core_stacked_on_shell():
+    """'pedestal' (the structure every pre-2026-10-10 'hybrid' run actually built, see PLAN.md):
+    core sits ON TOP of shell, not embedded within its y-span."""
+    base = dict(h_core=555.0, w_core=730.0, sin_width=1250.0, sin_height=750.0)
+    g = geo.make_geometry('pedestal', base)
+
+    x = np.linspace(-1200, 1200, 241)
+    y = np.linspace(900, 2400, 301)  # spans substrate up through shell AND the stacked core
+
+    core, shell = g._masks(x, y)
+    assert core.any() and shell.any()
+    assert not (core & shell).any()  # still never overlap, but for a different reason
+    # core's y-range sits entirely above shell's y-range (stacked, not embedded beside/under it)
+    rows_with_core = np.where(core.any(axis=1))[0]
+    rows_with_shell = np.where(shell.any(axis=1))[0]
+    assert y[rows_with_core.min()] >= y[rows_with_shell.max()] - 1e-6
+    print(f"pedestal core/shell OK: core sits above shell (core y>={y[rows_with_core.min()]:.0f}, "
+          f"shell y<={y[rows_with_shell.max()]:.0f}), confirming the stacked (non-embedded) layout")
 
     try:
         geo.make_geometry('hybrid', {**base, 'sin_width': 500.0})  # smaller than w_core
@@ -148,6 +170,7 @@ if __name__ == '__main__':
     test_loaded_lossy_mask_and_loss()
     test_region_masks_tile_the_cross_section()
     test_hybrid_core_embedded_in_shell()
+    test_pedestal_core_stacked_on_shell()
     test_ridge_has_no_lossy_region()
     test_tio2_fit_equation_sanity()
     test_sinx_fit_equation_sanity()

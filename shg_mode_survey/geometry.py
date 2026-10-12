@@ -571,7 +571,73 @@ class Hybrid:
                 f"sin_w={p['sin_width']:g} sin_h={p['sin_height']:g}")
 
 
-FAMILIES = {'ridge': Ridge, 'loaded': Loaded, 'hybrid': Hybrid}
+class Pedestal(Hybrid):
+    """AlN ridge stacked on TOP of an SiNx rib/pedestal -- NOT embedded within it. This is the
+    structure every 'hybrid' sweep actually built and solved before 2026-10-10's position fix
+    (see PLAN.md): `em.shape()`'s `position` defaults to `(0, 'auto')`, which auto-stacks a new
+    shape on top of whatever already occupies its mask footprint (real-fab-style sequential
+    deposition); `Hybrid.build()`'s 'core' shape() call never set an explicit `position` until the
+    fix, so it silently stacked on top of the already-drawn 'shell' instead of embedding laterally
+    within it as intended. Renamed and kept as its own family rather than discarded or overwritten
+    -- it's a real, different waveguide (an AlN strip loaded on an etched SiNx rib, closer in
+    spirit to `Loaded` than to the embedded `Hybrid`, but using a finite rib instead of an unetched
+    film and AlN instead of TiO2 as the loading strip) and its already-computed results remain
+    valid *for this structure*, even though they don't test the Honda et al. TM00->TM20 mechanism
+    `Hybrid` exists for. Archived runs: `pedestal1`, `pedestal_sweep1`, `pedestal_vertical1`
+    (renamed from `hybrid1`/`hybrid_sweep1`/`hybrid_vertical1`).
+
+    Only the geometry placement differs from `Hybrid` (`_masks`, `build`, `bbox`, `describe`) --
+    every other method (loss, chi(2), Cerenkov, export) is inherited unchanged since they all key
+    off `_masks()`/`bbox()` polymorphically.
+    """
+    family = 'pedestal'
+
+    def build(self, em, roughness_rms=(0.0, 0.0), correlation_length=(0.0, 0.0)):
+        p = self.params
+        aniso = f"[{p['core_eq_o']},{p['core_eq_e']},{p['core_eq_o']}]"
+        em.add_material(name='custom_AlN', refractive_index_equation=aniso, wavelength_unit='um')
+        if p['shell_eq']:
+            em.add_material(name='custom_shell', refractive_index_equation=p['shell_eq'],
+                            wavelength_unit='um')
+        em.settings(window_width=self.window_width, window_height=p['sin_height'] + 2000.0,
+                    boundary_condition='0A')
+        em.shape(name='Substrate', material=p['substrate_material'], height=p['substrate_height'])
+        rough = ({'roughness_rms': list(roughness_rms), 'correlation_length': list(correlation_length)}
+                 if any(roughness_rms) else {})
+        em.shape(name='shell', material=self._shell_material_name(), height=p['sin_height'],
+                 mask=p['sin_width'], etch_depth=p['sin_height'], sidewall_angle=0.0, **rough)
+        # No explicit `position` -- this is the (original, unfixed) auto-stacking behavior that
+        # defines this family: 'core' lands on top of 'shell' within its own mask width.
+        em.shape(name='core', material='custom_AlN', height=p['h_core'], mask=p['w_core'],
+                 etch_depth=p['h_core'], sidewall_angle=p['sidewall_angle'], **rough)
+        em.shape(name='TopClad', material=p['topclad_material'], height=p['topclad_height'],
+                 shape_type='conformal')
+
+    def _masks(self, x, y):
+        p = self.params
+        xx, yy = np.meshgrid(np.asarray(x, float), np.asarray(y, float))
+        y_sub = p['substrate_height']
+        shell_box = (yy >= y_sub) & (yy <= y_sub + p['sin_height']) & (np.abs(xx) <= p['sin_width'] / 2)
+        core = _trapezoid(xx, yy, y_sub + p['sin_height'], p['h_core'], p['w_core'], p['sidewall_angle'])
+        # shell_box's top (yy <= y_sub+sin_height) and core's bottom (yy >= y_sub+sin_height) are
+        # both inclusive at that exact shared boundary line -- `& ~core` (same defensive pattern
+        # Hybrid's _masks uses) avoids double-counting it, same as Hybrid needs even though the two
+        # aren't supposed to overlap "by construction" in either class.
+        return core, shell_box & ~core
+
+    def bbox(self):
+        p = self.params
+        return (-p['sin_width'] / 2, p['sin_width'] / 2, p['substrate_height'],
+                p['substrate_height'] + p['sin_height'] + p['h_core'])
+
+    def describe(self):
+        p = self.params
+        return (f"pedestal h={p['h_core']:g} w={p['w_core']:g} "
+                f"{p['shell_material'] if not p['shell_eq'] else 'custom'} "
+                f"sin_w={p['sin_width']:g} sin_h={p['sin_height']:g}")
+
+
+FAMILIES = {'ridge': Ridge, 'loaded': Loaded, 'hybrid': Hybrid, 'pedestal': Pedestal}
 
 
 def make_geometry(family, params):

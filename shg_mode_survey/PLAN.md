@@ -870,3 +870,43 @@ Pending user direction on how to proceed: likely a full re-run of both the later
 sweeps (and the narrower-`sin_height` follow-up) under the corrected geometry, effectively
 restarting the `hybrid` family's sweep history from here. The three invalidated runs are left
 committed (as `hybrid1`, `hybrid_sweep1`, `hybrid_vertical1`) for the record, not deleted.
+
+### Renamed the stacked (non-embedded) structure to its own family, `pedestal` (2026-10-12)
+
+User: keep the 52 geometries already computed under the broken geometry (real, valid results --
+just for a different structure than intended), filed under an honest name rather than left
+confusingly labeled `hybrid` next to the now-corrected family of the same name.
+
+Added `geometry.Pedestal` (subclasses `Hybrid`, overriding only the geometry-placement methods --
+`build`, `_masks`, `bbox`, `describe` -- since every other method, loss/chi(2)/Cerenkov/export,
+already keys off `_masks()`/`bbox()` polymorphically): an AlN ridge stacked on top of an SiNx
+rib/pedestal, matching exactly what every pre-fix `hybrid` run actually built (`build()` omits the
+`position` override; `_masks()` places the core's trapezoid base at the shell's top instead of the
+substrate line). Hit one new bug writing `_masks()`: shell's top (`yy <= y_sub+sin_height`) and
+core's bottom (`yy >= y_sub+sin_height`) are both inclusive at that exact shared line, double-
+counting it in `region_masks()`'s tiling check -- fixed with the same `& ~core` defensive pattern
+`Hybrid`'s `_masks` already uses (even though the two "shouldn't" overlap by construction there
+either). `test_geometry.py` gained a `pedestal` case in the tiling test plus
+`test_pedestal_core_stacked_on_shell` (confirms core sits strictly above shell, not beside/within
+it); full suite passes.
+
+Renamed in place (`git mv`) and relabeled: `runs/hybrid1` -> `runs/pedestal1`,
+`runs/hybrid_sweep1` -> `runs/pedestal_sweep1`, `runs/hybrid_vertical1` -> `runs/pedestal_vertical1`
+(+ their `_smoke` counterparts), with every CSV's `family` column rewritten `hybrid` -> `pedestal`
+(always the 2nd column, confirmed before the rewrite -- safe, unambiguous sed). The original
+`survey_config_hybrid*.py` files are left untouched and will be reused as-is for the corrected
+re-run (same parameter grids, now building the actually-embedded structure); parallel
+`survey_config_pedestal*.py` copies were made purely for archival/reproducibility of the `pedestal`
+runs, `family` string swapped and each docstring prefixed with a note pointing back to this entry
+-- not meant to be run again, the data's already there.
+
+### Next up
+
+1. Housekeeping continues: review everything in `runs/` so far (ridge, loaded, pedestal) and decide
+   what new report/figure outputs are useful -- user wants, concretely, a PDF version of the
+   sub-metric breakdown artifact ("Hybrid Loss Atlas").
+2. Plan a broader campaign (beyond `hybrid`/`pedestal`) -- candidate directions and materials-data
+   gaps to be scoped with the user before anything runs.
+3. Once 1-2 are settled: re-run `hybrid1`/`hybrid_sweep1` (lateral) and `hybrid_vertical1`
+   (vertical, extended thinner per the "smaller sin_height keeps winning" trend) under the
+   corrected geometry, then fold in whatever the broader campaign adds.
