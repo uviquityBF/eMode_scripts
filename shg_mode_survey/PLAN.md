@@ -1298,3 +1298,45 @@ confirms, with real data, what was previously just an assumption from before any
 sequencing page's existing order stands (row 6 hybrid re-run first, already queued and blocked
 only on this plan's review; row 4 SiN rib-loaded second). Each batch gets its own check-in per
 established user direction -- not yet started as of this entry.
+
+### Three pre-launch questions resolved: d33 choice, per-run loss column, swept ranges (2026-10-12)
+
+User, before actually launching anything: (1) pick a ScAlN d33 working value -- go with whichever
+result predicts higher d33, flag it "at risk" given the contradicting MBE paper, specifically to
+document the upside if true; (2) confirm new runs use "with SH loss" only, not a paired with/
+without comparison each time; (3) suggest and document the width/thickness ranges planned per
+family.
+
+**(1) d33 decision**: Input Assumptions report section 6b. 32% Sc, d33=54.6/d31=3.95 pm/V,
+interpolated (not extrapolated) from Yoshioka 2021's sputtered-film measurements at the real
+28%/36% points -- chosen specifically because 32% is also one of Baumler 2019's 8 fitted index
+compositions, so the value isn't floating free of any n(lambda) model. AT RISK throughout: Lee et
+al. 2026 (MBE on sapphire) shows d33 scattered/suppressed instead at this composition, with d31
+showing the clean enhancement there instead -- flagged as the fallback mechanism if MBE turns out
+to describe the real growth process. `shg_physics.overlap_terms()` already separates d33/d31/d15
+per crossing, so switching mechanisms later needs no code change. Unblocks rows 2/5/7 (study
+plan); row 8 still needs the embedded-Cerenkov geometry class, which doesn't exist yet.
+
+**(2) Confirmed**: yes, "with SH loss" (calibrated) only, going forward -- no paired lossless run
+needed per geometry, since NCE (loss-independent) is recorded regardless and the one-time
+`aln_loss_report.pdf` comparison already exists as the reference case. Caught a real gap while
+answering this: a NEW run with `sh_absorption_calibrated=True` was folding that term invisibly
+into `sh_absorption_dB_per_m`, with no way to separate it back out later -- exactly what the AM187
+retroactive-reprocessing exercise needed and didn't have by default. Fixed: `survey.py`'s
+`bulk_absorption_loss()` no longer includes the calibrated term; a new `calibrated_sh_loss()` is
+called separately and stored as its own `sh_calibrated_dB_per_m` column.
+`sh_absorption_dB_per_m`/`peak_efficiency_pct_per_W`/`L_opt_mm` keep their existing meaning (the
+full total) -- purely an additive breakdown column, nothing downstream needs to change.
+
+**(3) Swept ranges**: documented directly on each topology page in `simulation_study_plan.pdf`
+(not a separate page) -- ridge h 300-400 x w 300-800nm (done, best h=350/w=500); rib-loaded
+t_film {354,600} x h_s {70,150} x w_s {500,1000}nm (shared identically across rows 3/4/5 so a
+material swap is the only variable); embedded-guided: lateral 24pts (w_core 200-600 x sin_width
+700-1500, fixed h_core=400/sin_height=700), vertical 23pts (h_core 250-450 x sin_height 450-1100
+at the lateral sweep's best point). New `survey_config_loaded_sin.py` (row 4) mirrors the TiO2
+grid exactly with SiN swapped in. Both hybrid configs (`survey_config_hybrid_sweep.py`/
+`_vertical.py`) were missing `sh_absorption_calibrated=True` entirely until this entry -- fixed
+before anything launches; the vertical sweep also gained one point (sin_height=450) to test the
+pedestal archival data's "smaller sin_height keeps winning" trend to the 200nm-margin boundary.
+
+Still not started: the actual EMode campaign itself (row 6 first). Pending user confirmation.
