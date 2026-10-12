@@ -32,7 +32,7 @@ plt.rcParams.update({
 
 MATRIX = [
     dict(n=1, topology='Ridge', h_a='n/a (no A layer)', core='AlN', shell='—', substrate='Al2O3',
-         purpose='baseline', status='done (`ridge`)', ok=True),
+         purpose='baseline', status='done (`ridge`); loss comparison done', ok=True),
     dict(n=2, topology='Ridge', h_a='n/a', core='ScAlN', shell='—', substrate='Al2O3',
          purpose='does Sc-enhanced d33 alone beat AlN, no loading tricks', status='need d33(Sc)', ok=False),
     dict(n=3, topology='Rib-loaded', h_a='0 → film thickness', core='AlN', shell='TiO2', substrate='Al2O3',
@@ -96,6 +96,19 @@ def page1_title(pdf):
         "h_A: the base-layer thickness, free 0 (pure ridge/no embedding base) up to a full film",
         "     (rib/loaded) -- only wired up in the `loaded` family today; adding it to the embedded",
         "     topologies (rows 6-9) is new geometry work, not yet done (marked TBD*).",
+    ], fontsize=9.5, color=INK_MUTED, linespacing=1.5)
+    y -= 0.175
+
+    fig.text(0.08, y, 'STANDING ASSUMPTION FOR EVERY NEW RUN FROM HERE ON', fontsize=9, weight='bold',
+              color=WARN)
+    y -= 0.03
+    text_block(fig, 0.08, y, [
+        "AlN's own measured SH-band absorption (AM187-LT6 k_e) was explored and REJECTED (it implied",
+        "~100,000 dB/cm, checked against real device output and found 3-4 orders of magnitude too",
+        "high). Every row below should instead launch with geom.params['sh_absorption_calibrated'] =",
+        "True -- a flat, empirically-calibrated 100 dB/cm SH-band addition, confinement-weighted,",
+        "layered on top of native scattering (unaffected). See Input Assumptions report section 3b",
+        "and PLAN.md's 2026-10-12 entries for the full derivation.",
     ], fontsize=9.5, color=INK_MUTED, linespacing=1.5)
 
     fig.text(0.08, 0.06,
@@ -200,11 +213,12 @@ def page3_ridge(pdf):
         render_cross_section(ax, g, 'Ridge (h=350, w=400 nm)')
     topology_page(pdf, 'Topology 1: Ridge', diagram, [r for r in MATRIX if r['topology'] == 'Ridge'], [
         "Bare AlN (or ScAlN) core directly on substrate -- no A layer, no B/shell at all. The",
-        "simplest structure in the matrix, and the only one whose lossless NCE already survives real",
-        "loss intact (ridge's own peak_efficiency is ~4-5 orders of magnitude better than every other",
-        "family tried so far -- see the Input Assumptions / sub-metric reports). Row 2 asks whether",
-        "Sc-doping the core alone (no shell, no loading) can beat this without needing any of the",
-        "more complex topologies below -- blocked on the same d33(Sc) disagreement as rows 5/7/8.",
+        "simplest structure in the matrix, and still the best-surviving one under real (calibrated)",
+        "SH loss, confirmed directly (aln_loss_report.pdf): median calibrated peak efficiency ~41,000x",
+        "above `loaded`'s, best-to-best ~4,700x -- `loaded`'s TiO2 strip, already lossy at SH before",
+        "any of this, compounds with the calibrated addition rather than being masked by it. Row 2",
+        "asks whether Sc-doping the core alone (no shell, no loading) can beat even this without any",
+        "of the more complex topologies below -- blocked on the same d33(Sc) disagreement as rows 5/7/8.",
     ])
 
 
@@ -235,8 +249,9 @@ def page5_embedded_guided(pdf):
         "family, fixed 2026-10-10 after the earlier 'pedestal' geometry bug (core was stacked on top",
         "of the shell, not embedded in it -- see PLAN.md). This is the structure that actually tests",
         "the Honda et al. 2025 TM00->TM20 mechanism; the re-run under the fix (row 6) is the next",
-        "EMode campaign queued after this plan is reviewed. Row 7 swaps the shell for ScAlN, making",
-        "both core and shell potentially nonlinear simultaneously -- pending d33(Sc).",
+        "EMode campaign queued after this plan is reviewed -- launch it with the standing",
+        "sh_absorption_calibrated=True assumption (page 1) from the start, not as a later reprocess.",
+        "Row 7 swaps the shell for ScAlN, both core and shell potentially nonlinear -- pending d33(Sc).",
     ])
 
 
@@ -286,7 +301,8 @@ def page7_sequencing(pdf):
     y -= 0.06
     text_block(fig, 0.08, y, [
         "Proposed order, each step its own check-in (user direction, 2026-10-12: not a green light",
-        "to run all ten rows unsupervised) --",
+        "to run all ten rows unsupervised) -- every step launches with",
+        "geom.params['sh_absorption_calibrated']=True from the start (page 1), not reprocessed later --",
         "",
         "1. Row 6: re-run `hybrid1`/`hybrid_sweep1` (lateral) and `hybrid_vertical1` (vertical,",
         "   extended thinner per the 'smaller sin_height keeps winning' trend from the pedestal",
