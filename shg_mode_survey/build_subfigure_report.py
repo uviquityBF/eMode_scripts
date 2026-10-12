@@ -251,6 +251,68 @@ def notes_page(pdf, df):
     plt.close(fig)
 
 
+def waterfall_page(pdf, df, n_bars=14):
+    """One bar per geometry (its best crossing by eta), each stacked into the dB-additive
+    decomposition from nce_decomposition.py -- shape overlap, mode-size/field scale, SH loss,
+    pump loss, plus the 5th "device length" term the exact identity requires once each geometry
+    is evaluated at its own optimal length (see that module's docstring for why). Segments sum
+    EXACTLY to the total (black marker) -- verified to ~1e-14 dB across the full dataset, not
+    approximate. Requested 2026-10-12; dB chosen specifically because efficiency is a PRODUCT of
+    these factors, not a sum -- stacking raw 0-100%-normalized contributions (the originally
+    proposed approach) would not have reconstructed the true total."""
+    import nce_decomposition as nd
+
+    best_idx = df.groupby(['h_core', 'w_core', 'sin_width', 'sin_height'])['eta_pct_per_W_cm2'].idxmax()
+    best = df.loc[best_idx].copy()
+    decomps = [nd.decompose(row) for _, row in best.iterrows()]
+    best = best.assign(**{k: [d[k] for d in decomps] for k in decomps[0]})
+    best = best.sort_values('total_dB', ascending=False).head(n_bars)
+    labels = [f"h{r.h_core:.0f}\nw{r.w_core:.0f}\nsw{r.sin_width:.0f}\nsh{r.sin_height:.0f}"
+              for r in best.itertuples()]
+
+    segs = [('shape_dB', 'overlap shape', '#0e9488'), ('field_dB', 'mode size / field', '#7570B3'),
+            ('sh_loss_dB', 'SH loss', '#5b3df0'), ('pump_loss_dB', 'pump loss', '#c9680e'),
+            ('length_dB', 'device length (5th, see notes)', '#c7c9d6')]
+
+    fig = plt.figure(figsize=(11.5, 8.8))
+    fig.suptitle('NCE breakdown: dB-additive waterfall per geometry', fontsize=14, weight='bold', x=0.07, ha='left')
+    ax = fig.add_axes((0.08, 0.46, 0.88, 0.42))
+    x = np.arange(len(best))
+    pos_bottom = np.zeros(len(best))
+    neg_bottom = np.zeros(len(best))
+    for key, label, color in segs:
+        vals = best[key].to_numpy()
+        bottoms = np.where(vals >= 0, pos_bottom, neg_bottom)
+        ax.bar(x, vals, bottom=bottoms, color=color, label=label, width=0.68)
+        pos_bottom = np.where(vals >= 0, pos_bottom + vals, pos_bottom)
+        neg_bottom = np.where(vals < 0, neg_bottom + vals, neg_bottom)
+    ax.scatter(x, best['total_dB'], color=INK, zorder=5, s=22, label='total (= sum of segments)')
+    ax.axhline(0, color=BORDER, lw=0.8)
+    ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=6.5)
+    ax.set_ylabel('dB (10·log₁₀ of each power-like ratio)')
+    style_ax(ax)
+
+    fig.legend(*ax.get_legend_handles_labels(), fontsize=7.5, frameon=False, ncol=3,
+               loc='upper center', bbox_to_anchor=(0.5, 0.40))
+
+    fig.text(0.08, 0.28,
+              "Top geometries by peak efficiency (pedestal family, best crossing per geometry). Positive\n"
+              "segments stack upward, negative downward, from 0 -- the black dot always lands exactly on\n"
+              "their sum. 'Mode size / field' is the one unbounded segment (a physical scale set by\n"
+              "confinement and the d-tensor, not a 0-1 quality factor like the other three); everything\n"
+              "else is <= 0 dB by construction (overlap_shape <= 1, loss always reduces L_eff).",
+              fontsize=9, color=INK_MUTED)
+    fig.text(0.08, 0.13,
+              "'Device length' is a 5th, unrequested-but-necessary term: each bar is evaluated at ITS OWN\n"
+              "optimal propagation length (loss_limited_length's L_opt, same quantity behind this project's\n"
+              "usual peak_efficiency_pct_per_W) rather than one shared length -- without it the other four\n"
+              "terms alone would not sum to the true total. See nce_decomposition.py's docstring for the\n"
+              "two earlier (rejected) versions that didn't reconstruct the total on real data.",
+              fontsize=8.5, color=INK_FAINT)
+    pdf.savefig(fig)
+    plt.close(fig)
+
+
 def main():
     args = sys.argv[1:]
     out = args[0] if args and args[0].endswith('.pdf') else 'runs/pedestal_subfigure_report.pdf'
@@ -267,6 +329,7 @@ def main():
         vertical = df[(df['w_core'] == 400.0) & (df['sin_width'] == 700.0)]
         geometry_maps_page(pdf, vertical, 'h_core', 'sin_height', 'h_core [nm]', 'sin_height [nm]',
                            'Vertical geometry maps', 'Fixed w_core = 400 nm, sin_width = 700 nm')
+        waterfall_page(pdf, df)
         notes_page(pdf, df)
 
     print(f'wrote {out} ({len(df)} refined crossings, runs={runs})')

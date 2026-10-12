@@ -224,6 +224,12 @@ AlN, d31 channels are ~(0.1/4.7)² ≈ 5e-4 of d33 — not competitive.
   | AlN boule/crystal patents (e.g. "Aluminum nitride crystals having low Urbach energy...") | ultra-pure bulk single crystal | ~1-5e-5 (from alpha < 10-30 cm^-1 claims) | ~15-30 cm^-1 |
   | Beliaev et al. 2021, J. Vac. Sci. Technol. A 39, 043408 -- refractiveindex.info `main/AlN/nk/Beliaev1.yml`, CC0, tabulated 211-1690 nm | 303 nm reactive-sputtered film | ~0.045-0.12 | ~25000-45000 cm^-1 |
   | (unverified -- found only as a search-engine summary, not an independently fetched citation) MOCVD epitaxial AlN on sapphire at 233 nm | epitaxial thin film | ~0.005-0.05 | ~2800-28000 cm^-1 |
+  | Baumler et al. 2019 (J. Appl. Phys. 126, 045715) -- the same digitized source as `ScAlN_Baumler2019_sellmeier_fits.json`'s 0% Sc fit, i.e. *already in this repo* | thin film (growth method per that paper, not re-verified here) | 0.0058-0.019 (225/215 nm; fit from only 3 raw digitized UV samples -- sparse) | ~1.4-4.8 dB/um (~1.4-4.8e6 dB/m) |
+
+  **2026-10-12**: found while checking an idea of the user's -- this falls *within* the existing
+  range, close to the MOCVD-epitaxial estimate, not a new extreme. User also has (b) a repo of the
+  team's own measured AlN ellipsometry data, not yet shared/pulled in -- likely the most directly
+  relevant source once available, pending the pointer.
 
   These span ~4 orders of magnitude in k, entirely driven by material quality/growth method
   (single crystal vs epitaxial vs sputtered/amorphous) -- not a case where one literature value is
@@ -969,3 +975,21 @@ bandgap (~3.4 eV) sits well below the SH photon energy (~5.5 eV at 215-235 nm), 
 almost certainly strongly absorbing exactly where this project needs transparency. Useful
 composition window likely narrow, not yet checked quantitatively -- documented as an open item on
 the GaAlN status page, not resolved.
+
+### dB-additive NCE waterfall chart, built and verified (2026-10-12)
+
+`nce_decomposition.py`: exact decomposition of loss-corrected peak efficiency into 5 dB-additive
+terms (overlap shape, mode-size/field scale, SH loss, pump loss, + device length -- a 5th term
+found to be mathematically necessary, not originally requested, once each geometry is evaluated at
+its own optimal propagation length; see the module's docstring). Two earlier derivations were
+tried and rejected after each failed its own reconstruction check against real data (~35 dB error
+both times) -- comparing `L_eff` across separate `loss_limited_length()` calls that each
+independently re-optimize L, then a single shared fixed length that numerically underflowed for
+the dataset's higher-loss geometries. Final version: ~1e-14 dB reconstruction error (machine
+precision) across all 416 `pedestal` crossings -- segments sum exactly to the total, not
+approximately.
+
+Added as a new page (`waterfall_page`) in `build_subfigure_report.py`: one stacked bar per
+geometry (best crossing by eta, top 14 by peak efficiency), positive segments up / negative down
+from 0, a marker confirming each bar's segments sum to its total. `runs/pedestal_subfigure_report.pdf`
+regenerated with it.
