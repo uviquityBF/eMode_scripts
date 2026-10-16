@@ -246,22 +246,36 @@ class Loaded:
     for a partial etch (mask = unetched rib width, slab = t_film - etch_depth outside) and that
     mask_offset shifts the strip laterally -- same conventions as the ridge, but not yet
     confirmed for these two cases.
+
+    NO-STRIP MODE (added 2026-10-14, study plan row 1.2): omit h_s/w_s (or pass h_s=0) for a bare
+    partially-etched rib with no loading strip at all -- the B=0 edge case of this topology, w_rib
+    becomes REQUIRED in this mode (there's no w_s to fall back to). `has_strip` is False and every
+    method that touches the strip (build, _masks, chi2_map, eps_fn, region_masks, bbox, describe)
+    degrades to a harmless no-op for it rather than erroring on a zero-height EMode shape (an
+    untested path EMode itself has never been asked to handle, unlike this class's existing
+    etch_depth convention, which at least has real runs behind it).
     """
     family = 'loaded'
     defaults = {'etch_depth': 0.0, 'w_rib': None, 'sidewall_angle': 5.0,
                 'strip_material': 'TiO2', 'strip_eq': None, 'strip_loss_eq': None,
                 'strip_chi2': None, 'strip_sidewall': 5.0, 'strip_offset': 0.0,
+                'h_s': 0.0, 'w_s': 0.0,
                 'substrate_height': 1000.0, 'topclad_height': 800.0,
                 'substrate_material': 'Al2O3', 'topclad_material': 'SiO2',
                 'core_eq_o': AlN_EQ_O, 'core_eq_e': AlN_EQ_E, 'core_chi2': 'AlN'}
 
     def __init__(self, **params):
         self.params = {**self.defaults, **params}
-        for k in ('t_film', 'h_s', 'w_s'):
-            if k not in self.params:
-                raise ValueError(f"loaded needs {k}")
+        if 't_film' not in self.params:
+            raise ValueError("loaded needs t_film")
         if self.params['w_rib'] is None:
+            if self.params['h_s'] <= 0:
+                raise ValueError("loaded needs w_rib when h_s <= 0 (no strip width to fall back to)")
             self.params['w_rib'] = self.params['w_s']
+
+    @property
+    def has_strip(self):
+        return self.params['h_s'] > 0
 
     @property
     def symmetric_x(self):
@@ -275,7 +289,7 @@ class Loaded:
     @property
     def scatter_shapes(self):
         """Shapes with etched sidewalls (for EMode-native roughness scattering)."""
-        return ['strip'] + (['film'] if self.params['etch_depth'] > 0 else [])
+        return (['strip'] if self.has_strip else []) + (['film'] if self.params['etch_depth'] > 0 else [])
 
     def _strip_material_name(self):
         return 'custom_strip' if self.params['strip_eq'] else self.params['strip_material']
@@ -284,7 +298,7 @@ class Loaded:
         p = self.params
         aniso = f"[{p['core_eq_o']},{p['core_eq_e']},{p['core_eq_o']}]"
         em.add_material(name='custom_AlN', refractive_index_equation=aniso, wavelength_unit='um')
-        if p['strip_eq']:
+        if self.has_strip and p['strip_eq']:
             em.add_material(name='custom_strip', refractive_index_equation=p['strip_eq'],
                             wavelength_unit='um')
         total = p['t_film'] + p['h_s']
@@ -296,9 +310,10 @@ class Loaded:
         em.shape(name='film', material='custom_AlN', height=p['t_film'], mask=p['w_rib'],
                  etch_depth=p['etch_depth'], sidewall_angle=p['sidewall_angle'],
                  **(rough if p['etch_depth'] > 0 else {}))
-        em.shape(name='strip', material=self._strip_material_name(), height=p['h_s'],
-                 mask=p['w_s'], mask_offset=p['strip_offset'], etch_depth=p['h_s'],
-                 sidewall_angle=p['strip_sidewall'], **rough)
+        if self.has_strip:
+            em.shape(name='strip', material=self._strip_material_name(), height=p['h_s'],
+                     mask=p['w_s'], mask_offset=p['strip_offset'], etch_depth=p['h_s'],
+                     sidewall_angle=p['strip_sidewall'], **rough)
         em.shape(name='TopClad', material=p['topclad_material'], height=p['topclad_height'],
                  shape_type='conformal')
 
@@ -337,8 +352,11 @@ class Loaded:
         slab = p['t_film'] - p['etch_depth']
         film = ((yy >= y_sub) & (yy <= y_sub + slab)) | _trapezoid(
             xx, yy, y_sub + slab, p['etch_depth'], p['w_rib'], p['sidewall_angle'])
-        strip = _trapezoid(xx, yy, y_sub + p['t_film'], p['h_s'], p['w_s'], p['strip_sidewall'],
-                           p['strip_offset'])
+        if self.has_strip:
+            strip = _trapezoid(xx, yy, y_sub + p['t_film'], p['h_s'], p['w_s'], p['strip_sidewall'],
+                               p['strip_offset'])
+        else:
+            strip = np.zeros_like(film, dtype=bool)
         return film, strip
 
     def core_mask(self, x, y):
@@ -416,6 +434,8 @@ class Loaded:
 
     def describe(self):
         p = self.params
+        if not self.has_strip:
+            return f"loaded(no-strip) t={p['t_film']:g} e={p['etch_depth']:g} w_rib={p['w_rib']:g}"
         return (f"loaded t={p['t_film']:g} e={p['etch_depth']:g} {p['strip_material'] if not p['strip_eq'] else 'custom'}"
                 f" h_s={p['h_s']:g} w_s={p['w_s']:g}" + (f" off={p['strip_offset']:g}" if p['strip_offset'] else ''))
 

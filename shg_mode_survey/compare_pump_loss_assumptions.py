@@ -1,6 +1,7 @@
 """Compares two pump (blue, 430-470nm) absorption-mechanism assumption sets against each other,
-as a function of ridge core width at fixed h_core=350nm, using trial_grid's already-exported TM00
-pump fields (no new EMode calls needed). Requested 2026-10-12: rather than resolve which set is
+as a function of ridge core width at fixed h_core=350nm, using row1_ridge_v1's (renamed 2026-10-13
+from trial_grid) already-exported TM00 pump fields (no new EMode calls needed). Requested
+2026-10-12: rather than resolve which set is
 "right", quantify how much they actually disagree, log the comparison, and keep the current
 survey_config.py assumptions if the gap isn't large.
 
@@ -55,8 +56,8 @@ H_CORE = 350.0
 
 
 def main():
-    g = pd.read_csv('runs/trial_grid/geometries.csv')
-    p = pd.read_csv('runs/trial_grid/pump_modes.csv')
+    g = pd.read_csv('runs/row1_ridge_v1/geometries.csv')
+    p = pd.read_csv('runs/row1_ridge_v1/pump_modes.csv')
     g['h_core'] = g['params'].apply(lambda s: json.loads(s)['h_core'])
     g['w_core'] = g['params'].apply(lambda s: json.loads(s)['w_core'])
     h_rows = g[g['h_core'] == H_CORE]

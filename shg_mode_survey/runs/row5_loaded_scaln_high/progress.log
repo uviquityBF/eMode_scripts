@@ -1,0 +1,97 @@
+[00:47:12] run 'row5_loaded_scaln_high' (survey_config_loaded_scaln_high): 16 geometries, 0 already done, 16 to do
+[00:47:12] [1/16] loaded t=354 e=0 custom h_s=70 w_s=500  (fef7b7a1d935)
+[00:48:30]   pumps (54s): TM00[A] 2.1326, TM10[S] 2.1087, TM20[A] 2.1026, TE00[S] 2.0845, TE10[A] 2.0537
+[00:51:36]   SH scan (187s): 110 SH tracks, 367 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[00:51:36]   refine (0s): 0 refined, 367 screened-only (367 of those skipped for refinement as window-limited)
+[00:51:37]   done in 265s; best: TM00->TM126 @ 218.67 nm, NCE 967 %/W/cm^2 (screened)
+[00:51:37]   elapsed 4.4 min, est. remaining 66.2 min
+[00:51:37] [2/16] loaded t=354 e=0 custom h_s=70 w_s=1000  (849a141550b7)
+[00:52:57]   pumps (57s): TM00[A] 2.1423, TM10[S] 2.1242, TM20[A] 2.1080, TE00[S] 2.1022, TE10[A] 2.0769
+[00:57:53]   SH scan (296s): 128 SH tracks, 442 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[00:58:38]   refine (45s): 3 refined, 439 screened-only (438 of those skipped for refinement as window-limited)
+[00:58:39]   done in 421s; best: TM00->TM126 @ 218.53 nm, NCE 694 %/W/cm^2 (screened)
+[00:58:39]   elapsed 11.4 min, est. remaining 80.1 min
+[00:58:39] [3/16] loaded t=354 e=0 custom h_s=150 w_s=500  (a559b8eda3bf)
+[00:59:48]   pumps (46s): TE00[S] 2.1894, TM00[A] 2.1877, TM10[S] 2.1157, TM00[A] 2.1064 | TE10[A] 2.0763
+[01:06:13]   SH scan (385s): 217 SH tracks, 309 crossings; WARNING SH n_eff window too narrow at 42 group-steps (raise num_sh_modes)
+[01:06:13]   refine (0s): 0 refined, 309 screened-only (309 of those skipped for refinement as window-limited)
+[01:06:14]   done in 455s; best: TM00->TM86 @ 232.94 nm, NCE 3.21e+03 %/W/cm^2 (screened)
+[01:06:14]   elapsed 19.0 min, est. remaining 82.4 min
+[01:06:14] [4/16] loaded t=354 e=0 custom h_s=150 w_s=1000  (dbaf329e1658)
+[01:07:36]   pumps (59s): TE00[S] 2.2183, TM00[A] 2.2084, TE10[A] 2.1864, TM10[S] 2.1810, TM20[A] 2.1374
+[01:12:30]   SH scan (294s): 139 SH tracks, 323 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[01:13:31]   refine (61s): 4 refined, 319 screened-only (319 of those skipped for refinement as window-limited)
+[01:13:33]   done in 439s; best: TM00->TM66? @ 231.79 nm, NCE 2.31e+03 %/W/cm^2 (refined)
+[01:13:33]   elapsed 26.3 min, est. remaining 79.0 min
+[01:13:33] [5/16] loaded t=436 e=0 custom h_s=70 w_s=500  (152935862533)
+[01:14:47]   pumps (50s): TM00[A] 2.1450, TM10[S] 2.1292, TM20[A] 2.1231, TE00[S] 2.0893, TE10[A] 2.0689
+[01:18:13]   SH scan (206s): 125 SH tracks, 398 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[01:18:25]   refine (12s): 1 refined, 397 screened-only (397 of those skipped for refinement as window-limited)
+[01:18:26]   done in 294s; best: TM00->TM321? @ 219.25 nm, NCE 8.81 %/W/cm^2 (screened)
+[01:18:26]   elapsed 31.2 min, est. remaining 68.7 min
+[01:18:26] [6/16] loaded t=436 e=0 custom h_s=70 w_s=1000  (1770ea2e96bd)
+[01:19:48]   pumps (59s): TM00[A] 2.1522, TM10[S] 2.1377, TM20[A] 2.1279, TE00[S] 2.1047, TE10[A] 2.0815
+[01:24:41]   SH scan (293s): 146 SH tracks, 404 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[01:25:30]   refine (49s): 3 refined, 401 screened-only (400 of those skipped for refinement as window-limited)
+[01:25:31]   done in 425s; best: TE00->TM06? @ 233.37 nm, NCE 11.7 %/W/cm^2 (refined)
+[01:25:31]   elapsed 38.3 min, est. remaining 63.9 min
+[01:25:31] [7/16] loaded t=436 e=0 custom h_s=150 w_s=500  (469e5db3117c)
+[01:26:48]   pumps (52s): TE00[S] 2.1895, TM00[A] 2.1888, TM10[S] 2.1311, TM00[A] 2.1280 | TE10[A] 2.0783
+[01:33:31]   SH scan (403s): 258 SH tracks, 379 crossings; WARNING SH n_eff window too narrow at 42 group-steps (raise num_sh_modes)
+[01:33:31]   refine (0s): 0 refined, 379 screened-only (379 of those skipped for refinement as window-limited)
+[01:33:32]   done in 480s; best: TM00->TM208? @ 222.77 nm, NCE 2.01e+03 %/W/cm^2 (screened)
+[01:33:32]   elapsed 46.3 min, est. remaining 59.6 min
+[01:33:32] [8/16] loaded t=436 e=0 custom h_s=150 w_s=1000  (65ddde173c8d)
+[01:34:54]   pumps (60s): TE00[S] 2.2183, TM00[A] 2.2090, TE10[A] 2.1864, TM10[S] 2.1820, TM20[A] 2.1417
+[01:39:57]   SH scan (304s): 165 SH tracks, 300 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[01:40:28]   refine (31s): 2 refined, 298 screened-only (298 of those skipped for refinement as window-limited)
+[01:40:29]   done in 418s; best: TM10->TM148? @ 223.43 nm, NCE 1.41e+03 %/W/cm^2 (screened)
+[01:40:29]   elapsed 53.3 min, est. remaining 53.3 min
+[01:40:29] [9/16] loaded t=518 e=0 custom h_s=70 w_s=500  (f3a746096c56)
+[01:41:43]   pumps (51s): TM00[A] 2.1536, TM10[S] 2.1419, TM20[A] 2.1353, TE00[S] 2.0924, TE10[A] 2.0786
+[01:45:13]   SH scan (210s): 143 SH tracks, 353 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[01:45:13]   refine (0s): 0 refined, 353 screened-only (353 of those skipped for refinement as window-limited)
+[01:45:14]   done in 285s; best: TE10->TM109? @ 216.92 nm, NCE 4.5 %/W/cm^2 (screened)
+[01:45:14]   elapsed 58.0 min, est. remaining 45.1 min
+[01:45:14] [10/16] loaded t=518 e=0 custom h_s=70 w_s=1000  (5969a865a240)
+[01:46:37]   pumps (60s): TM00[A] 2.1589, TM10[S] 2.1474, TM20[A] 2.1402, TE00[S] 2.1058, TE10[A] 2.0849
+[01:51:34]   SH scan (298s): 168 SH tracks, 316 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[01:52:06]   refine (31s): 2 refined, 314 screened-only (313 of those skipped for refinement as window-limited)
+[01:52:07]   done in 413s; best: TE00->TM07 @ 233.13 nm, NCE 4.5 %/W/cm^2 (refined)
+[01:52:07]   elapsed 64.9 min, est. remaining 38.9 min
+[01:52:07] [11/16] loaded t=518 e=0 custom h_s=150 w_s=500  (18b95f8830a4)
+[01:53:21]   pumps (51s): TM00[A] 2.1892, TE00[S] 2.1890, TM10[S] 2.1427, TM00[A] 2.1415 | TE10[A] 2.0812
+[02:01:52]   SH scan (511s): 287 SH tracks, 447 crossings; WARNING SH n_eff window too narrow at 42 group-steps (raise num_sh_modes)
+[02:01:52]   refine (0s): 0 refined, 447 screened-only (447 of those skipped for refinement as window-limited)
+[02:01:53]   done in 586s; best: TM00->TM68 @ 231.19 nm, NCE 1.29e+03 %/W/cm^2 (screened)
+[02:01:53]   elapsed 74.7 min, est. remaining 33.9 min
+[02:01:53] [12/16] loaded t=518 e=0 custom h_s=150 w_s=1000  (11e3b362dd04)
+[02:03:18]   pumps (62s): TE00[S] 2.2179, TM00[A] 2.2090, TE10[A] 2.1860, TM10[S] 2.1823, TM00?[A] 2.1475
+[02:08:27]   SH scan (309s): 180 SH tracks, 316 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[02:09:50]   refine (83s): 5 refined, 311 screened-only (311 of those skipped for refinement as window-limited)
+[02:09:51]   done in 478s; best: TM10->TM129? @ 223.72 nm, NCE 863 %/W/cm^2 (refined)
+[02:09:51]   elapsed 82.6 min, est. remaining 27.5 min
+[02:09:51] [13/16] loaded t=600 e=0 custom h_s=70 w_s=500  (66b90de45944)
+[02:11:08]   pumps (54s): TM00[A] 2.1598, TM10[S] 2.1503, TM20[A] 2.1431, TE00[S] 2.0950, TE10[A] 2.0852
+[02:15:31]   SH scan (262s): 157 SH tracks, 250 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[02:16:00]   refine (30s): 2 refined, 248 screened-only (248 of those skipped for refinement as window-limited)
+[02:16:02]   done in 370s; best: TM20->TM109 @ 221.59 nm, NCE 1.88 %/W/cm^2 (screened)
+[02:16:02]   elapsed 88.8 min, est. remaining 20.5 min
+[02:16:02] [14/16] loaded t=600 e=0 custom h_s=70 w_s=1000  (74e1c705d783)
+[02:17:28]   pumps (63s): TM00[A] 2.1637, TM10[S] 2.1545, TM20[A] 2.1482, TE00[S] 2.1067, TE10[A] 2.0884
+[02:22:44]   SH scan (316s): 191 SH tracks, 191 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[02:23:00]   refine (16s): 1 refined, 190 screened-only (190 of those skipped for refinement as window-limited)
+[02:23:01]   done in 420s; best: TE00->TM108? @ 232.97 nm, NCE 1.91 %/W/cm^2 (refined)
+[02:23:01]   elapsed 95.8 min, est. remaining 13.7 min
+[02:23:01] [15/16] loaded t=600 e=0 custom h_s=150 w_s=500  (9347d87e774c)
+[02:24:31]   pumps (66s): TM00[A] 2.1892, TE00[S] 2.1889, TM10[S] 2.1507, TM00[A] 2.1505 | TE00[S] 2.0863
+[02:33:20]   SH scan (528s): 333 SH tracks, 494 crossings; WARNING SH n_eff window too narrow at 42 group-steps (raise num_sh_modes)
+[02:33:20]   refine (0s): 0 refined, 494 screened-only (494 of those skipped for refinement as window-limited)
+[02:33:21]   done in 620s; best: TM00->TM283? @ 223.21 nm, NCE 726 %/W/cm^2 (screened)
+[02:33:21]   elapsed 106.1 min, est. remaining 7.1 min
+[02:33:21] [16/16] loaded t=600 e=0 custom h_s=150 w_s=1000  (c3884161d4f5)
+[02:34:47]   pumps (63s): TE00[S] 2.2177, TM00[A] 2.2087, TE10[A] 2.1858, TM10[S] 2.1822, TM00[A] 2.1539
+[02:40:08]   SH scan (321s): 192 SH tracks, 350 crossings; WARNING SH n_eff window too narrow at 21 group-steps (raise num_sh_modes)
+[02:40:08]   refine (0s): 0 refined, 350 screened-only (350 of those skipped for refinement as window-limited)
+[02:40:09]   done in 408s; best: TM10->TM2010? @ 224.00 nm, NCE 469 %/W/cm^2 (screened)
+[02:40:09]   elapsed 113.0 min, est. remaining 0.0 min

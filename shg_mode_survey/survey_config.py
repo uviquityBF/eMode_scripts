@@ -53,6 +53,7 @@ SETTINGS = {
 # (family, params) -- Step 1: existing ridge only.
 GEOMETRIES = [('ridge', {'h_core': 350.0, 'w_core': 400.0})]
 
-# A wider trial grid (used by run name 'trial_grid' via survey_config_grid.py if desired):
+# A wider trial grid (used by run name 'row1_ridge_v1', formerly 'trial_grid', via
+# survey_config_grid.py if desired -- superseded 2026-10-13 by survey_config_ridge_sweep.py):
 TRIAL_GRID = [('ridge', {'h_core': float(h), 'w_core': float(w)})
               for h in (300.0, 350.0, 400.0) for w in np.arange(300.0, 801.0, 100.0)]

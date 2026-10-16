@@ -10,7 +10,8 @@ filling the whole window (same convention geometry.Loaded's 'strip' already reli
 core is drawn after the SiNx shell so it takes priority in their overlapping footprint ("later
 shape wins").
 
-AlN core dimensions start near this project's own established good range for `ridge` (trial_grid:
+AlN core dimensions start near this project's own established good range for `ridge` (row1_ridge_v1,
+formerly trial_grid:
 h=300-400, w=300-800 nm) rather than the paper's telecom-scale values (555/730 nm) -- the paper's
 absolute core size optimizes confinement at 1550 nm pump, not 450 nm, so it's a starting point to
 scale from, not a default to copy. SiNx shell sized with a flat margin around the core; both are

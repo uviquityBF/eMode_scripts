@@ -19,7 +19,7 @@ filling the whole window (same convention geometry.Loaded's 'strip' already reli
 core is drawn after the SiNx shell so it takes priority in their overlapping footprint ("later
 shape wins") -- true, but incomplete: priority only matters where shapes actually overlap, and
 (unknown at the time) they didn't. AlN core dimensions start near this project's own established
-good range for `ridge` (trial_grid: h=300-400, w=300-800 nm) rather than the paper's telecom-scale
+good range for `ridge` (row1_ridge_v1, formerly trial_grid: h=300-400, w=300-800 nm) rather than the paper's telecom-scale
 values (555/730 nm). SiNx shell sized with a flat margin around the core.
 """
 

@@ -20,16 +20,18 @@ SH-band only by construction) -- but pump_loss_dB can still shift, usually a sma
 amount, because it's evaluated AT L_opt and L_opt shortens once SH loss rises; see the
 delta-waterfall page.
 
-Covers: loaded_sweep1, trial_grid, wide_window -- the only runs with enough field exports
-available on this machine to reprocess (loaded_sweep1 96/96, wide_window 48/48, trial_grid
-269/280; rows missing an export keep NaN AlN-loss columns and are excluded here).
+Covers: row3_loaded_tio2, row1_ridge_v1, row1_ridge_v1_wide_window (renamed 2026-10-13 from
+loaded_sweep1, trial_grid, wide_window -- see PLAN.md) -- the only runs with enough field exports
+available on this machine to reprocess (row3_loaded_tio2 96/96, row1_ridge_v1_wide_window 48/48,
+row1_ridge_v1 269/280; rows missing an export keep NaN AlN-loss columns and are excluded here).
 pedestal1/pedestal_sweep1/pedestal_vertical1 are excluded entirely: zero field exports exist on
 either machine, and a from-scratch re-solve was estimated at ~9.5 hours of EMode time for a
 geometry already being superseded by the corrected embedded 'hybrid' family -- not worth it
-(2026-10-12 decision, see PLAN.md).
+(2026-10-12 decision, see PLAN.md). Pre-dates row1_ridge (the num_sh_modes=45-fixed ridge refresh,
+2026-10-13); re-running this comparison against that data is a possible follow-up, not done here.
 
 Usage: python build_aln_loss_report.py [out.pdf] [run_name ...]
-Default: loaded_sweep1 trial_grid wide_window -> runs/aln_loss_report.pdf
+Default: row3_loaded_tio2 row1_ridge_v1 row1_ridge_v1_wide_window -> runs/aln_loss_report.pdf
 """
 import json
 import sys
@@ -397,8 +399,9 @@ def notes_page(pdf, r, runs):
         "Excluded: pedestal1/pedestal_sweep1/pedestal_vertical1 (zero field exports on either\n"
         "machine; re-solving from scratch was estimated at ~9.5 hours of EMode time for a geometry\n"
         "already being superseded by the corrected embedded 'hybrid' family -- not worth it, per\n"
-        "2026-10-12 decision). trial_grid is missing 11/280 refined crossings' exports even after\n"
-        "merging the laptop's local runs folder -- those rows are excluded here too, not zero-filled."
+        "2026-10-12 decision). row1_ridge_v1 (formerly trial_grid) is missing 11/280 refined\n"
+        "crossings' exports even after merging the laptop's local runs folder -- those rows are\n"
+        "excluded here too, not zero-filled."
     )
     fig.text(0.08, 0.86, text, fontsize=10, color=INK_MUTED, va='top', linespacing=1.7)
     pdf.savefig(fig)
@@ -408,7 +411,7 @@ def notes_page(pdf, r, runs):
 def main():
     args = sys.argv[1:]
     out = args[0] if args and args[0].endswith('.pdf') else 'runs/aln_loss_report.pdf'
-    runs = [a for a in args if not a.endswith('.pdf')] or ['loaded_sweep1', 'trial_grid', 'wide_window']
+    runs = [a for a in args if not a.endswith('.pdf')] or ['row3_loaded_tio2', 'row1_ridge_v1', 'row1_ridge_v1_wide_window']
     r = load(runs)
 
     with PdfPages(out) as pdf:

@@ -115,7 +115,7 @@ def lateral_edge_ratio(f, x, edge_frac=0.025):
     oscillating at roughly its own envelope all the way to the wall, so this stays well above 0;
     such modes can still show a real-looking, even strong, local field enhancement near an actual
     physical feature (so NCE/overlap alone don't catch them) riding on top of that un-decayed
-    background. Caught 2026-10-05 reviewing `loaded_sweep1`: its reported best crossing
+    background. Caught 2026-10-05 reviewing `loaded_sweep1` (now `row3_loaded_tio2`): its reported best crossing
     (TM00->TM123?, NCE 293 %/W/cm^2) turned out to be exactly this -- see PLAN.md.
 
     Always computed over the full window actually solved (`x` from the field export), so it's

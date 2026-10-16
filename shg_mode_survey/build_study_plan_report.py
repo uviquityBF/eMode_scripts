@@ -32,17 +32,27 @@ plt.rcParams.update({
 
 MATRIX = [
     dict(n=1, topology='Ridge', h_a='n/a (no A layer)', core='AlN', shell='—', substrate='Al2O3',
-         purpose='baseline', status='done (`ridge`); loss comparison done', ok=True),
+         purpose='baseline', status='done (`row1_ridge`); loss comparison done', ok=True),
+    dict(n='1.2', topology='Ridge', h_a='0 → film thickness', core='AlN', shell='— (no strip, B=0)',
+         substrate='Al2O3', purpose='bare partial-etch rib, no strip -- between row 1 and row 4',
+         status='done; best NCE 2.25, peak_eff up to 0.0038 %/W (~row-1-like, no strip = no bulk loss)', ok=True),
     dict(n=2, topology='Ridge', h_a='n/a', core='ScAlN', shell='—', substrate='Al2O3',
-         purpose='does Sc-enhanced d33 alone beat AlN, no loading tricks', status='ready — d33(Sc) set, AT RISK', ok=True),
+         purpose='Sc-enhanced d33 alone, no loading', status='ready — d33(Sc) set, AT RISK', ok=True),
     dict(n=3, topology='Rib-loaded', h_a='0 → film thickness', core='AlN', shell='TiO2', substrate='Al2O3',
          purpose='baseline', status='done — found bad (SH-absorbing)', ok=True),
     dict(n=4, topology='Rib-loaded', h_a='0 → film thickness', core='AlN', shell='SiN', substrate='Al2O3',
-         purpose='SiN strip instead of TiO2', status='ready (`loaded_sin`), not yet run', ok=True),
-    dict(n=5, topology='Rib-loaded', h_a='0 → film thickness', core='AlN', shell='ScAlN', substrate='Al2O3',
-         purpose='nonlinear-active loading strip — new idea', status='ready — d33(Sc) set, AT RISK', ok=True),
+         purpose='SiN strip instead of TiO2', status='done; best NCE 9.49 %/W/cm², Cerenkov-flagged (structural)', ok=True),
+    dict(n='5.1', topology='Rib-loaded', h_a='0 → film thickness', core='AlN', shell='ScAlN (9% Sc)',
+         substrate='Al2O3', purpose='LOW: index boost to pull the mode up',
+         status='done; best NCE 1.57 %/W/cm² (below row 4)', ok=True),
+    dict(n='5.2', topology='Rib-loaded', h_a='0 → film thickness', core='AlN', shell='ScAlN (41% Sc)',
+         substrate='Al2O3', purpose='HIGH: chase the d33 boost',
+         status='done; best NCE 2313 %/W/cm² (~244x row 4), d33 EXTRAPOLATED', ok=True),
+    dict(n='5.3', topology='Rib-loaded', h_a='0 → film thickness', core='AlN', shell='ScAlN (23% Sc)',
+         substrate='Al2O3', purpose='MIDDLE: fill the low/high gap',
+         status='done; best NCE 11.2 %/W/cm² (above row 4, nowhere near 5.2 — grid-specific overlap, not monotonic with Sc%)', ok=True),
     dict(n=6, topology='Embedded (guided)', h_a='0 → TBD*', core='AlN', shell='SiN', substrate='Al2O3',
-         purpose='corrected `hybrid` — Honda et al. mechanism', status='ready, re-run pending', ok=True),
+         purpose='corrected `hybrid` — Honda et al. mechanism', status='done (`row6_hybrid_lateral`/`_vertical`); TM20 not found, close analogues', ok=True),
     dict(n=7, topology='Embedded (guided)', h_a='0 → TBD*', core='AlN', shell='ScAlN', substrate='Al2O3',
          purpose='both-active variant', status='ready — d33(Sc) set, AT RISK', ok=True),
     dict(n=8, topology='Embedded (Cerenkov)', h_a='0 → TBD*', core='ScAlN', shell='AlN (blanket)', substrate='Al2O3 or AlN',
@@ -75,7 +85,8 @@ def page1_title(pdf):
               fontsize=11, color=INK_MUTED)
     y -= 0.07
     text_block(fig, 0.08, y, [
-        "This documents the campaign before any of it runs -- ten geometry/material combinations",
+        "This documents the campaign -- originally ten geometry/material combinations, now 13 after",
+        "splitting row 5 into 3 Sc-composition levels and adding row 1.2 (bare rib, 2026-10-14)",
         "(MATRIX, next page), grouped into four underlying cross-section topologies (one page each,",
         "with a real diagram where the family already exists, a schematic where it doesn't yet).",
         "",
@@ -85,7 +96,7 @@ def page1_title(pdf):
         "this repo (ridge, loaded, the corrected hybrid) and the not-yet-built Cerenkov case in one",
         "consistent vocabulary -- not four unrelated structures.",
     ], fontsize=10.5)
-    y -= 0.30
+    y -= 0.33
 
     fig.text(0.08, y, 'READING THE MATRIX', fontsize=9, weight='bold', color=INK_FAINT)
     y -= 0.03
@@ -119,39 +130,51 @@ def page1_title(pdf):
 
 
 def page2_matrix(pdf):
+    """Paginates once a row would overflow the bottom margin (Y_FLOOR) -- added 2026-10-14 when
+    splitting row 5 into 3 composition levels and adding row 1.2 pushed the matrix from 10 to 13
+    rows; cramming all 13 onto one page by shortening status text further would have started
+    losing real information instead of just fixing layout."""
     import textwrap
-    fig = plt.figure(figsize=(11, 8.5))
-    fig.text(0.06, 0.94, 'Design matrix', fontsize=18, weight='bold', color=INK)
-    fig.text(0.06, 0.905, '10 rows, grouped by topology — see the following pages for diagrams of each',
-              fontsize=10, color=INK_MUTED)
-
-    # (label, x, char-wrap-width) -- wrap widths sized to each column's actual on-page space at
-    # fontsize 8 (~46 chars/inch at this width), not matplotlib's wrap=True (which wraps at the
-    # PAGE edge, not the column edge, and was found to overlap the next column on long text).
+    Y_FLOOR = 0.06
     cols = [('#', 0.015, 3), ('topology', 0.06, 14), ('h_A', 0.20, 13), ('core (C)', 0.345, 9),
             ('shell/outer (B)', 0.435, 13), ('substrate', 0.575, 11), ('purpose', 0.705, 24),
             ('status', 0.895, 13)]
-    y0 = 0.86
-    for label, x, _ in cols:
-        fig.text(x, y0, label.upper(), fontsize=8, weight='bold', color=INK_FAINT)
-    fig.add_artist(plt.Line2D([0.02, 0.99], [y0 - 0.012, y0 - 0.012], color=BORDER, lw=1,
-                              transform=fig.transFigure))
 
-    y = y0 - 0.035
+    def new_page(page_n):
+        fig = plt.figure(figsize=(11, 8.5))
+        fig.text(0.06, 0.94, 'Design matrix' + (f' (cont. {page_n})' if page_n > 1 else ''),
+                  fontsize=18, weight='bold', color=INK)
+        if page_n == 1:
+            fig.text(0.06, 0.905, f'{len(MATRIX)} rows, grouped by topology — see the following '
+                      'pages for diagrams of each', fontsize=10, color=INK_MUTED)
+        y0 = 0.86 if page_n == 1 else 0.90
+        for label, x, _ in cols:
+            fig.text(x, y0, label.upper(), fontsize=8, weight='bold', color=INK_FAINT)
+        fig.add_artist(plt.Line2D([0.02, 0.99], [y0 - 0.012, y0 - 0.012], color=BORDER, lw=1,
+                                  transform=fig.transFigure))
+        return fig, y0 - 0.035
+
+    page_n = 1
+    fig, y = new_page(page_n)
     for i, row in enumerate(MATRIX):
+        vals = [row['topology'], row['h_a'], row['core'], row['shell'], row['substrate'],
+                row['purpose'], row['status']]
+        max_lines = max(textwrap.fill(val, width=w).count('\n') + 1 for (_, _, w), val in
+                        zip(cols[1:], vals))
+        row_h = 0.022 + max_lines * 0.022
+        if y - row_h < Y_FLOOR:
+            pdf.savefig(fig)
+            plt.close(fig)
+            page_n += 1
+            fig, y = new_page(page_n)
+
         mark = '✓' if row['ok'] else '○'
         mark_color = GOOD if row['ok'] else WARN
         fig.text(cols[0][1], y, f"{row['n']}", fontsize=8.5, color=mark_color, weight='bold', va='top')
         fig.text(cols[0][1] + 0.018, y, mark, fontsize=9, color=mark_color, va='top')
-        vals = [row['topology'], row['h_a'], row['core'], row['shell'], row['substrate'],
-                row['purpose'], row['status']]
-        max_lines = 1
         for (label, x, w), val in zip(cols[1:], vals):
             wrapped = textwrap.fill(val, width=w)
-            n_lines = wrapped.count('\n') + 1
-            max_lines = max(max_lines, n_lines)
             fig.text(x, y, wrapped, fontsize=8, color=INK, linespacing=1.4, va='top')
-        row_h = 0.022 + max_lines * 0.022
         y -= row_h
         if i < len(MATRIX) - 1:
             fig.add_artist(plt.Line2D([0.02, 0.99], [y + 0.01, y + 0.01],
@@ -212,15 +235,16 @@ def page3_ridge(pdf):
         g = geo.make_geometry('ridge', {'h_core': 350.0, 'w_core': 400.0})
         render_cross_section(ax, g, 'Ridge (h=350, w=400 nm)')
     topology_page(pdf, 'Topology 1: Ridge', diagram, [r for r in MATRIX if r['topology'] == 'Ridge'], [
-        "Bare AlN (or ScAlN) core directly on substrate -- no A layer, no B/shell at all. The",
-        "simplest structure in the matrix, and still the best-surviving one under real (calibrated)",
-        "SH loss, confirmed directly (aln_loss_report.pdf): median calibrated peak efficiency ~41,000x",
-        "above `loaded`'s, best-to-best ~4,700x -- `loaded`'s TiO2 strip, already lossy at SH before",
-        "any of this, compounds with the calibrated addition rather than being masked by it. Row 2",
-        "asks whether Sc-doping the core alone (no shell, no loading) can beat even this -- ready to",
-        "run, using the 32%-Sc working d33 (section 6b of Input Assumptions, AT RISK).",
-        "SWEPT RANGE (row 1, already done): h_core 300-400nm x w_core 300-800nm (trial_grid/",
-        "wide_window) -- best found: h=350, w=500. Row 2 (ScAlN) not yet run; same range proposed.",
+        "Bare AlN (or ScAlN) core directly on substrate -- no A layer, no B/shell at all. Still the",
+        "best-surviving structure under real (calibrated) SH loss (aln_loss_report.pdf): median",
+        "calibrated peak efficiency ~41,000x above `loaded`'s. Row 2 asks whether Sc-doping the core",
+        "alone beats even this -- ready, 32%-Sc working d33 (section 6b, AT RISK). Row 1.2 asks a",
+        "different question: a PARTIALLY etched bare rib (no strip) -- the B=0 edge case of the",
+        "Rib-loaded topology (row 4), grouped here since it's still bare AlN. Needs a `geometry.",
+        "Loaded` no-strip code path (not yet done) -- user-approved 2026-10-14, building now.",
+        "SWEPT RANGE (row 1, done): h_core 300-400nm x w_core 300-800nm -- best h=350/w=500, NCE",
+        "14.9 %/W/cm^2 (num_sh_modes 30->45 fix confirmed this unchanged from the v1 data). Row 1.2:",
+        "t_film range TBD. Row 2: not yet run, row 1's range proposed.",
     ])
 
 
@@ -231,16 +255,17 @@ def page4_rib_loaded(pdf):
         render_cross_section(ax, g, 'Rib-loaded, h_A=full film (etch_depth=0)')
     topology_page(pdf, 'Topology 2: Rib-loaded (cap-only)', diagram,
                  [r for r in MATRIX if r['topology'] == 'Rib-loaded'], [
-        "A (AlN film/rib) with a narrower loading strip B capping only its top (w_B <= w_C in the",
-        "generalized sketch's terms) -- the existing `loaded` family. h_A ranges from a full,",
-        "unetched film (shown here, etch_depth=0 -- the 'loaded waveguide' extreme) down to a fully",
-        "etched ridge with just the strip's own confinement left. Row 3 (TiO2) already ran and was",
-        "found bad -- TiO2 absorbs strongly at the SH wavelength, collapsing real efficiency ~40,000x",
-        "below ridge's. Row 4 (SiN) swaps the strip material; row 5 (ScAlN strip) is ready to run,",
-        "using the 32%-Sc working d33 (section 6b of Input Assumptions, AT RISK).",
-        "SWEPT RANGE: t_film {354,600}nm x h_s {70,150}nm x w_s {500,1000}nm, etch_depth=0 -- the",
-        "same 8-point grid for rows 3/4/5 (`survey_config_loaded.py` / `_loaded_sin.py`), kept",
-        "identical so a material swap is the only variable between them.",
+        "A (AlN film) with a loading strip B capping only its top -- the `loaded` family, always run",
+        "at etch_depth=0 (unetched film) so far (the B=0/full-etch extreme is row 1.2 instead). Row 3",
+        "(TiO2) found bad -- SH-absorbing, ~40,000x below ridge's. Row 4 (SiN) -- done, NCE 9.49, but",
+        "linearly inert (no chi(2)). Row 5 (ScAlN, nonlinear-active) split into 3 compositions",
+        "(2026-10-14): 5.1 (9%, done, NCE 1.57, below row 4), 5.2 (41%, done, NCE 2313 ~244x row 4 --",
+        "real d33 boost, verified via edge-ratio + effective-area checks, not an artifact; d33",
+        "EXTRAPOLATED), 5.3 (23%, next, d33 INTERPOLATED -- lower risk). ALL refined crossings in rows",
+        "4/5.1/5.2 are Cerenkov-flagged -- structural to etch_depth=0 (an extended same-material AlN",
+        "slab always exists), not material-specific; unquantified (no FDFD rate solve run yet).",
+        "SWEPT RANGE: t_film {354,436,518,600}nm x h_s {70,150}nm x w_s {500,1000}nm, etch_depth=0 --",
+        "identical across rows 3/4/5.1/5.2/5.3 so only the strip material/composition varies.",
     ])
 
 
@@ -310,28 +335,34 @@ def page7_sequencing(pdf):
     y -= 0.06
     text_block(fig, 0.08, y, [
         "Proposed order, each step its own check-in (user direction, 2026-10-12: not a green light",
-        "to run all ten rows unsupervised) -- every step launches with",
+        "to run all rows unsupervised) -- every step launches with",
         "geom.params['sh_absorption_calibrated']=True from the start (page 1), not reprocessed later --",
         "",
-        "1. Row 6: re-run `hybrid1`/`hybrid_sweep1` (lateral, `survey_config_hybrid_sweep.py`) and",
-        "   `hybrid_vertical1` (vertical, `survey_config_hybrid_vertical.py`, now extended to",
-        "   sin_height=450) under the corrected, now-embedded geometry. Already queued, blocked only",
-        "   on this plan's review.",
-        "2. Row 4: SiN rib-loaded (`survey_config_loaded_sin.py`, 8 geometries, same grid as the TiO2",
-        "   baseline), cheap, fills in topology 2 properly now that TiO2 (row 3) is known bad.",
-        "3. Rows 2/5/7: ScAlN d33 question resolved 2026-10-12 (Input Assumptions report section 6b)",
-        "   -- using the higher sputtered value (32% Sc, d33=54.6/d31=3.95 pm/V), explicitly flagged",
-        "   AT RISK pending the MBE disagreement. All three now ready to launch with no further",
-        "   blocker; configs not yet written (mirror row 1/4/6's grids with ScAlN swapped in).",
-        "4. Row 8: embedded-Cerenkov. d33 set (same AT RISK value), still needs the embedded-Cerenkov",
-        "   geometry class (topology 4) built -- doesn't exist yet, the remaining blocker.",
-        "5. Row 9: GaAlN. Needs n(lambda)/k(lambda) sourced first (Input Assumptions report, section",
-        "   5) -- lowest priority given the bandgap/transparency concern, unless that check turns up",
-        "   favorable.",
-        "6. Row 10: substrate swap, cross-cutting -- can run alongside any of the above once the",
+        "1. DONE (2026-10-12/13): Row 6, `row6_hybrid_lateral`/`row6_hybrid_vertical` -- 47",
+        "   geometries, 376 refined crossings, zero errors. TM00->TM20 itself not found; closest",
+        "   analogues are TM0x->TM2(5-9). See runs/hybrid_subfigure_report.pdf.",
+        "2. DONE (2026-10-13): Row 1 refresh, `row1_ridge` -- num_sh_modes 30->45 fixed a coverage",
+        "   gap found in `row1_ridge_v1`'s log; best crossing unchanged (h=350/w=500, NCE 14.9).",
+        "3. DONE (2026-10-13/14): Row 4 (`row4_loaded_sin`, SiN) -- best NCE 9.49. Row 5 split into 3",
+        "   Sc-composition levels (2026-10-14): 5.1 (9%, low) and 5.2 (41%, high) both done -- best",
+        "   NCE 1.57 and 2313 respectively, the latter a confirmed real d33 boost (~244x row 4,",
+        "   verified against edge-ratio and effective-area artifacts). ALL refined crossings in rows",
+        "   4/5.1/5.2 Cerenkov-flagged (structural, etch_depth=0 -- see Topology 2 page).",
+        "4. NEXT (2026-10-14, user-approved): Row 1.2 (bare partially-etched rib, no strip -- needs a",
+        "   geometry.Loaded code change, building now) and Row 5.3 (23% Sc middle composition,",
+        "   interpolated d33=44.2/d31=2.8 pm/V, lower risk than 5.2's extrapolated value).",
+        "5. THEN (2026-10-14, user-approved, geometries TBD -- discuss before launching): Row 8",
+        "   (embedded-Cerenkov, ScAlN channel) and Row 9 (embedded-Cerenkov, GaAlN channel). Row 8's",
+        "   d33 is set (same AT RISK value); both still need the embedded-Cerenkov geometry class",
+        "   (topology 4) built -- doesn't exist yet. Row 9 also needs GaAlN n/k sourced first (Input",
+        "   Assumptions report, section 5).",
+        "6. Row 2/7: ridge and embedded-guided ScAlN variants -- d33 question resolved (section 6b),",
+        "   configs not yet written (mirror row 1/6's grids with ScAlN swapped in). Not yet sequenced",
+        "   relative to rows 8/9 -- revisit after those.",
+        "7. Row 10: substrate swap, cross-cutting -- can run alongside any of the above once the",
         "   anisotropic-vs-isotropic AlN-substrate treatment is settled (user direction, 2026-10-12:",
         "   anisotropic).",
-    ], fontsize=10, linespacing=1.6)
+    ], fontsize=9.5, linespacing=1.5)
     pdf.savefig(fig)
     plt.close(fig)
 

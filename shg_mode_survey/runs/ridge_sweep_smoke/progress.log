@@ -1,0 +1,7 @@
+[18:33:33] run 'ridge_sweep_smoke' (survey_config_ridge_sweep_smoke): 1 geometries, 0 already done, 1 to do
+[18:33:33] [1/1] ridge h=350 w=600 sw=5  (6cd0e727309d)
+[18:34:38]   pumps (41s): TM00[A] 2.0853, TE00[S] 2.0219, TM10[S] 2.0013 | TE10[A] 1.9245, TM01[A] 1.8763
+[18:44:30]   SH scan (591s): 163 SH tracks, 67 crossings
+[18:45:54]   refine (84s): 8 refined, 59 screened-only (0 of those skipped for refinement as window-limited)
+[18:45:55]   done in 742s; best: TM00->TM04 @ 227.23 nm, NCE 3.85 %/W/cm^2 (refined)
+[18:45:55]   elapsed 12.4 min, est. remaining 0.0 min

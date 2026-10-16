@@ -277,7 +277,7 @@ def page3_comparison(pdf):
     text_block(fig, 0.08, y, [
         "code = survey_config.py's current 4-mechanism set (section 1). doc = the \"Loss Model Summary",
         "& Results\" memo's own \"Actual Inputs Used\" table (7 mechanisms, different roughness).",
-        "Computed from trial_grid's already-exported TM00 pump fields (ridge, h_core=350 nm fixed,",
+        "Computed from row1_ridge_v1's (formerly trial_grid) already-exported TM00 pump fields (ridge, h_core=350 nm fixed,",
         "no new EMode calls). Scattering's roughness difference (2.5 vs 2.0 nm sidewall) is applied",
         "as an analytic (RMS)^2 scaling to the combined EMode-native value, not a fresh VCM solve —",
         "a rougher approximation than the absorption-side comparison; see the script's docstring.",
@@ -650,7 +650,7 @@ def page8_notes(pdf):
         "with that output. See PLAN.md's 2026-10-12 \"empirical SH-loss bound\" entries for the full",
         "numeric derivation (per-coupling-scenario table) this report's section 3b summarizes.",
         "",
-        "Pump-loss comparison: compare_pump_loss_assumptions.py, computed from trial_grid's already-",
+        "Pump-loss comparison: compare_pump_loss_assumptions.py, computed from row1_ridge_v1's already-",
         "exported TM00 pump fields -- no new EMode calls. Re-run that script directly to regenerate",
         "runs/pump_loss_assumption_comparison.csv.",
         "",

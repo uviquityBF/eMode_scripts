@@ -1346,3 +1346,223 @@ Still not started: the actual EMode campaign itself (row 6 first). Pending user 
 any come back `True` (every pedestal-family crossing, same materials, came back `False`; the
 embedded geometry could plausibly shift `n_eff,pump` enough to change that). Only worth running
 `cerenkov_run.py`'s actual FDFD rate solve if something does flag.
+
+### Row 6 complete, row 1 (ridge) refreshed, run directories renamed to align with study-plan rows, row 4/5 launching (2026-10-13)
+
+**Row 6 (hybrid_sweep1/hybrid_vertical1, now row6_hybrid_lateral/row6_hybrid_vertical) finished**
+overnight: 24/24 + 23/23 geometries ok, zero errors, 376 refined crossings total,
+`cerenkov_allowed_any` False throughout (nothing to flag per the standing checklist). TM00->TM20
+itself not found; closest analogues are TM0x->TM2(5-9), competitive NCE (up to ~12 %/W/cm^2). The
+vertical sweep's new sin_height=450 boundary point did NOT continue the pedestal archival data's
+"smaller sin_height keeps winning" trend -- it reverses, true optimum at sin_height=500. Full
+writeup: `runs/hybrid_subfigure_report.pdf` (new report built for this run specifically, twin of
+`build_subfigure_report.py` but covering the calibrated-SH-loss-aware, corrected-embedding story
+the pedestal report couldn't -- also found the device-calibrated SH-loss term is only ~0.007%
+median of total SH absorption in this family; native SiNx shell UV bulk absorption dominates).
+
+**Row 1 (ridge) refresh, user-approved after reviewing the row-4-vs-row-1 tradeoff**: `trial_grid`'s
+own log showed 36 "SH n_eff window too narrow" warnings across its 18 geometries -- the identical
+coverage gap later found and fixed for row 6 by raising `num_sh_modes` 30->45. Re-ran the same
+18-geometry grid under `survey_config_ridge_sweep.py` (`num_sh_modes=45`,
+`sh_absorption_calibrated=True`) as a NEW run (`ridge_sweep1`, immediately renamed to `row1_ridge`
+below) rather than reusing `trial_grid`'s name, since both settings are hashed into each
+geometry's fingerprint and reusing the name would have appended new rows alongside the old ones
+with no way to tell them apart. Completed clean: 18/18 ok, 183.7 min, best crossing UNCHANGED
+(TM10->TM60 @ 221.6nm, h=350/w=400, NCE 14.9 %/W/cm^2) -- the coverage gap was real but didn't hide
+a better point than the old data already found.
+
+**Run directory renames**, user request ("declutter", align with study-plan rows, not a storage
+concern -- explicitly keep all data): `trial_grid`->`row1_ridge_v1`, `wide_window`->
+`row1_ridge_v1_wide_window`, `ridge_sweep1`->`row1_ridge`, `loaded_sweep1`->`row3_loaded_tio2`,
+`hybrid_sweep1`->`row6_hybrid_lateral`, `hybrid_vertical1`->`row6_hybrid_vertical`. Used `git mv`
+where the directory was git-tracked (`trial_grid`, `wide_window`, `loaded_sweep1` -- the latter via
+plain `Move-Item` after `git mv` hit a transient Windows permission error, then `git add -A` to
+stage the rename) and plain filesystem move for the three untracked ones (`ridge_sweep1`,
+`hybrid_sweep1`, `hybrid_vertical1` -- new/this-session data, never committed). `pedestal1`/
+`pedestal_sweep1`/`pedestal_vertical1` deliberately left unrenamed: that family isn't one of the
+10 study-plan rows (it's the accidental stacked-not-embedded geometry from the construction bug),
+so forcing a row number onto it would misrepresent the plan. Every code/doc reference to the old
+names was found via a full-repo scan and updated to the new names in every file where the
+reference describes CURRENT state (configs, report defaults/docstrings); references narrating
+PAST events (this entry included, and e.g. `geometry.py`'s note that `pedestal1`/etc. were
+`renamed from hybrid1/hybrid_sweep1/hybrid_vertical1` -- a DIFFERENT, older rename, unrelated to
+today's) were left untouched, consistent with how the hybrid1->pedestal1 rename was handled.
+Nothing deleted; staged via git but not committed.
+
+**Also cleaned up** (before the renames, same session): deleted `trial_grid_pumps/`, `trial3/`,
+`pedestal_smoke/`, `pedestal_sweep_smoke/`, `pedestal_vertical_smoke/`, `loaded_smoke/` -- smoke
+tests and a duplicate pumps-only diagnostic run, each verified to have a corresponding full run
+that already completed cleanly first (or, for `trial_grid_pumps`, identical fingerprints to
+`trial_grid` itself, making it a pure duplicate). ~150MB reclaimed; some of these had git-tracked
+CSV/plot files, so this shows as pending deletions in git status, fully recoverable via `git
+checkout` since nothing is committed.
+
+**Row 4 (SiN) + Row 5 (ScAlN) launching together, user direction 2026-10-13**: bumped `t_film` from
+2 points {354,600} to 4 evenly-spaced points {354,436,518,600} in both -- user flagged that 2 steps
+along each of 3 dimensions (8 geometries) wasn't enough resolution, specifically on film thickness.
+`h_s`/`w_s` left at their original 2-point extremes for now (not a blanket 3-4x on every
+dimension). 16 geometries each. New `survey_config_loaded_scaln.py` for row 5: ScAlN strip at 32%
+Sc (materials/ScAlN_Baumler2019_sellmeier_fits.json, the SAME composition as the project's chosen
+d33 working value, so index and chi(2) are self-consistent at one real fitted point) with
+`strip_chi2='ScAlN'` -- the first row where core (AlN, d33=4.7) AND strip (ScAlN, d33=54.6,
+d31=d15=3.95 pm/V, AT RISK) both contribute to the SHG overlap; `geometry.Loaded.chi2_map` already
+sums per-region contributions, no code change needed. Unlike AlN's own UV k (sourced, found
+absurd, REJECTED), ScAlN's complex equation here is Baumler's own real digitized SH-band k at this
+composition -- used the same way TiO2/SiN's `strip_loss_eq` already is (post-solve bulk-loss
+perturbation, not fed into EMode). Launch run names: `row4_loaded_sin`, `row5_loaded_scaln`.
+
+**"Pure rib" idea raised and deferred**: user asked whether a bare partially-etched rib with NO
+loading strip (sitting between row 1 and row 4) should be its own row or folded into an existing
+one. Answer: naturally the B(loading)->0 extreme of the SAME Rib-loaded topology (row 1's `Ridge`
+class has no partial-etch/residual-slab concept at all, so it can't express this), using the
+existing `Loaded` family's `etch_depth`/h_A machinery with the strip omitted -- but `Loaded.build()`
+and ~7 other methods currently assume a strip always exists, so this needs a real (if contained)
+geometry.py code change, not just a new config. User: put it on hold until row 4/5 finish.
+
+### ScAlN real-equation pole fix; row 5 launched at two Sc composition levels (2026-10-14)
+
+**Root cause of the row-5 smoke-test crash** (previously logged as an EMode "not enough memory"
+error): nothing to do with memory (machine has >1TB free, confirmed). `fit_baumler_sellmeier.py`'s
+`emode_equation_real` is generated by dropping the damping term from the fitted damped-Lorentzian
+model -- the damped (complex) form never truly diverges at a resonance, but the undamped form is a
+genuine pole there, and several compositions' fitted resonances land inside 215-235nm (e.g. 32%
+Sc had oscillators at 0.204/0.197/0.220 um). Confirmed numerically: the 32% real equation evaluated
+to n=10.8 at 220nm and a complex number at 218nm -- unphysical values EMode's eigenvalue solver
+correctly refused.
+
+**Fix**: new `materials/fix_baumler_real_equation.py` refits a SEPARATE undamped real Sellmeier,
+not to the raw digitized data, but to Re(sqrt(eps_damped(lam))) of the already-validated damped
+model, with each oscillator's resonance position boxed (via combinatorial box-bound search) out of
+[0.213, 0.237] um (215-235nm + 2nm guard) so a pole can never land there. All 8 compositions are
+now pole-free in-band. Fit quality is excellent at low Sc (9%: SH-band max|err| in n ~0.016) and
+degrades at high Sc (41%: ~0.21) because the TRUE resonance sits close to/inside the band at high
+composition -- tried tightening the exclusion margin, made no meaningful difference (a data/physics
+limitation, not a fitting-algorithm one). `emode_equation_complex` untouched (already a good fit,
+never fed to EMode directly). Updates `ScAlN_Baumler2019_sellmeier_fits.json` in place, adding a
+`real_equation_fix` block per composition (method, rms/max error vs. the damped model, pole check,
+a `believable` flag).
+
+**Row 5 launched at two Sc levels, per user direction** (2026-10-13/14): rather than one run at
+32% Sc, two runs targeting the two purposes user described -- "a low composition that is simply
+large enough to increase the index and pull the mode up" vs. "a much higher Sc concentration...
+looking for the d33 boost". 
+
+- **LOW = 9% Sc** (`survey_config_loaded_scaln_low.py`, run `row5_loaded_scaln_low`): d33=15.8,
+  d31=d15=0.84 pm/V, taken directly from Yoshioka 2021's REAL measured 10%-Sc sputtered point (9%
+  is close enough that no interpolation is needed) -- the lowest-risk d33 source in this project.
+  Index fit is excellent at this composition.
+- **HIGH = 41% Sc** (`survey_config_loaded_scaln_high.py`, run `row5_loaded_scaln_high`):
+  Baumler's highest fitted composition. d33=71.9, d31=d15=5.2 pm/V -- EXTRAPOLATED (not
+  interpolated) from Yoshioka's two highest real points (28%/36%), 5 points past the highest
+  actually-measured composition. Materially more at-risk than the established d33=54.6 (32%,
+  interpolated BETWEEN two real points) value used elsewhere -- flagged distinctly. Index fit is
+  believable but notably less accurate here (SH-band max|err| ~0.21) -- treat this run's
+  phase-matching wavelengths with more skepticism than row 5 low's.
+
+Both smoke-tested clean (no crash, ~5 min each) before committing to the full 16-geometry runs.
+Launched together as a chained detached campaign (`row5_loaded_scaln_low` then
+`row5_loaded_scaln_high`), same t_film/h_s/w_s grid as row 4. Per user direction: review results
+first; if a single composition's run time is comfortably under ~3h, consider adding a third
+("middle") composition level -- not done automatically.
+
+**Row 4 (SiN) results** (completed before this entry): 16/16 ok, 90.3 min, 9/4436 refined
+(~0.2%, known `loaded`-family window-limited-exclusion pattern). Best: TM00->TM65? @ 234.3nm, NCE
+9.49 %/W/cm^2 (t_film=354/h_s=150/w_s=1000). **ALL 9 refined crossings flagged
+`cerenkov_allowed_any=True`** -- the first positive Cerenkov flag in the project (every
+pedestal/hybrid crossing came back False). Structural, not random: every row 3/4/5 geometry has
+`etch_depth=0` (fully unetched film), meaning an extended, laterally-infinite same-material AlN
+slab background always exists, bounding n_eff,pump from above and making a leaky SH channel into
+that same slab close to structurally inevitable -- pedestal/hybrid's embedded topologies have no
+such extended core slab. `cerenkov_run.py`'s actual driven-FDFD rate solve (to quantify whether
+this is a meaningful loss channel) has not been run for any family yet.
+
+### Row 5 results: both compositions complete (2026-10-14/15)
+
+- **row5_loaded_scaln_low** (9% Sc): 16/16 ok, 95.3 min, 22/4520 refined (~0.5%). Best NCE 1.57
+  %/W/cm^2 (TM10->TM06 @ 229.1nm) -- LOWER than row4's SiN best (9.49), despite the nonzero d33;
+  low-Sc's modest index increase didn't pull the mode into a favorable overlap at this grid.
+- **row5_loaded_scaln_high** (41% Sc): 16/16 ok, 113.0 min, 23/5639 refined (~0.4%). Best NCE
+  **2313 %/W/cm^2** (TM00->TM66? @ 231.8nm) -- ~244x row4's SiN best. Checked every refined
+  crossing's sh_edge_ratio: all comfortably below the 0.02 box-mode-artifact threshold except one
+  marginal case (0.029, the 2nd-best point); the headline crossing itself is clean (0.0088). The
+  scaling (~244x eta vs. ~225x expected from d33's ~15x increase squared) is consistent with a
+  real chi(2) effect, not an artifact -- effective mode areas are comparable to row4's, ruling out
+  an artificial over-confinement explanation. Several top crossings carry '?' (uncertain ID)
+  labels, tracking with the high-Sc fit's larger in-band index error -- treat exact numbers with
+  more skepticism than row 5 low's, though the qualitative "d33 boost is real and large" finding
+  looks solid.
+
+Both runs: ALL refined crossings flagged `cerenkov_allowed_any=True` (3 for 3 with row 4 now --
+confirms this is a structural property of the unetched `loaded` topology, not material-specific).
+
+**Per user's stated criterion** ("if row 5 at a single composition level is less than say 3h"):
+both individual runs finished well under 3h (95.3min, 113.0min) -- a third ("middle") composition
+level is now in-scope per that rule. Not launched; user said to review 2-level results first.
+
+### Study plan restructured; row 1.2 (bare rib) + row 5.3 (middle ScAlN) approved (2026-10-14)
+
+User: proceed with the "pure rib" idea (deferred 2026-10-13), renumbered as row 1.2 in the plan;
+split row 5 into 3 explicit sub-rows (5.1/5.2/5.3, two already run). Do 1.2 and 5.3 next, then
+move to rows 8/9 -- geometries for 8/9 to be discussed before launching anything there.
+
+`build_study_plan_report.py` MATRIX updated: row 1.2 added (topology='Ridge', grouped with row 1
+since it's still bare AlN even though implemented via the `Loaded` family's code with no strip),
+row 5 split into 5.1 (9% Sc, done)/5.2 (41% Sc, done)/5.3 (23% Sc, next). Middle composition chosen
+as 23% Sc: closest Baumler-fitted point to the low/high midpoint (9%/41%), good pole-fixed index
+accuracy (SH-band max|err| ~0.056, much better than 5.2's 0.21), and its d33=44.2/d31=2.8 pm/V is
+INTERPOLATED (not extrapolated) from Yoshioka's real 20%/28% points -- same low-risk treatment as
+the original 32% choice, unlike 5.2's extrapolated value. MATRIX grew from 10 to 13 rows;
+`page2_matrix` now paginates (added 2026-10-14) rather than cramming everything onto one page --
+13 rows' status text no longer fits regardless of trimming.
+
+Next: implement `geometry.Loaded`'s no-strip code path (row 1.2), build+launch both configs.
+
+### Row 1.2 + row 5.3 launched (2026-10-14)
+
+Implemented `geometry.Loaded`'s no-strip mode: `has_strip` property (`h_s > 0`), `__init__` now
+requires `w_rib` explicitly when there's no strip (no `w_s` to fall back to), and every method that
+touches the strip (`build`, `_masks`, `scatter_shapes`, `describe`) guards on `has_strip` rather
+than assuming one exists -- `chi2_map`/`eps_fn`/`region_masks`/`bbox`/`cerenkov_regions` needed NO
+changes (already degrade correctly once the strip mask is all-False/strip_chi2 is None by
+default). Verified pure-Python (mask/chi2/region correctness, no EMode) and against the existing
+test suite (`test_geometry.py`, all pass, no regressions) before any EMode call.
+
+New `survey_config_rib_unloaded.py` (row 1.2): t_film {300,400,500,600,700}nm x etch_fraction
+{0.5, 0.7} (etch_depth = fraction*t_film, kept PROPORTIONAL so every geometry is a similarly-shaped
+rib at a different size) x w_rib=500nm fixed -- 10 geometries. New
+`survey_config_loaded_scaln_mid.py` (row 5.3, 23% Sc): d33=44.2/d31=2.8 pm/V interpolated, same
+t_film/h_s/w_s grid as 5.1/5.2 -- 16 geometries.
+
+Both smoke-tested clean before the full runs: row 1.2's smoke confirmed the no-strip code path end
+to end against real EMode (`describe()` correctly showed `loaded(no-strip) t=500 e=350 w_rib=500`,
+2 refined crossings, no crash). Launched together as a chained detached campaign
+(`row1_2_rib_unloaded` then `row5_3_loaded_scaln_mid`).
+
+Next after these: rows 8/9 (embedded-Cerenkov) -- user wants to discuss specific geometries before
+building/launching anything there.
+
+### Row 1.2 + row 5.3 results: both complete (2026-10-14)
+
+- **row1_2_rib_unloaded**: 10/10 ok, 85.8 min, 11/2462 refined. Best NCE 2.25 %/W/cm^2 (TM10->TM04,
+  t=300/e=210, i.e. etch_fraction=0.7). Key finding: `sh_absorption_dB_per_m` exactly equals
+  `sh_calibrated_dB_per_m` for every refined row -- ZERO native bulk absorption, since there's no
+  strip material at all (just lossless AlN + the calibrated term). SH loss ~3 orders of magnitude
+  below row 4's (7800-9600 dB/m vs ~1.5-2.8e7). Cross-validated against row1_ridge (fully etched,
+  also no strip): same SH-loss range (~8800-8900 dB/m), confirming this is about absence of a
+  strip, not etch depth. Peak efficiency up to 0.00376 %/W -- far above any strip-loaded row, in
+  the same regime as ridge's own best (0.0129 %/W, still higher -- full etch confines tighter).
+  Reinforces the existing ridge-vs-loaded finding (aln_loss_report.pdf, ~41,000x) rather than
+  contradicting it. ALL 11 refined crossings Cerenkov-flagged (etch_depth < t_film for every
+  geometry here too, by design -- same structural cause as rows 4/5.1/5.2).
+- **row5_3_loaded_scaln_mid** (23% Sc): 16/16 ok, 145.1 min, 17/5327 refined. Best NCE 11.2
+  %/W/cm^2 (TM10->TM107?, 233.2nm) -- ABOVE row 4's 9.49 and row 5.1's 1.57, but nowhere near row
+  5.2's 2313. Confirms the d33 boost is NOT monotonic with Sc composition in any simple way across
+  this fixed geometry grid -- it depends on whether a given geometry's specific SH mode happens to
+  overlap well with the strip, which 5.2's grid hit and 5.1/5.3's apparently didn't as strongly.
+  ALL 17 refined crossings Cerenkov-flagged (5th family/sub-row to show this -- structural,
+  confirmed consistently).
+
+Both rows 1.2 and 5.3 now marked done in `build_study_plan_report.py`'s MATRIX; PDF rebuilt.
+
+**Everything from the 2026-10-14 "row 1.2 + row 5.3, then discuss 8/9" plan is now complete.**
+Next: rows 8/9 (embedded-Cerenkov) -- user wants to discuss specific geometries before building.

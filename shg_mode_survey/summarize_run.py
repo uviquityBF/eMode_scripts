@@ -33,7 +33,7 @@ GRID = '#e1e0d9'
 # "mode" is quantized mainly by the simulation window's hard walls, not real lateral confinement
 # (see shg_physics.lateral_edge_ratio's docstring) -- NCE/overlap alone don't catch this, since a
 # real local field enhancement near a physical feature can ride on top of an undecayed background.
-# Found 2026-10-05 reviewing loaded_sweep1: its reported #1 crossing (NCE 293 %/W/cm^2) was this.
+# Found 2026-10-05 reviewing loaded_sweep1 (now row3_loaded_tio2): its reported #1 crossing (NCE 293 %/W/cm^2) was this.
 # Screened-only crossings have no field export so can't be checked -- they pass through unflagged
 # (NaN), not verified clean; see the caveat summarize_run.py prints when any exist in a top table.
 MAX_SH_EDGE_RATIO = 0.02
