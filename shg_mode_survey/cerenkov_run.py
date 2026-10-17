@@ -60,7 +60,16 @@ def run_one(row, d_tensors_pm, d_nm):
             'd_nm': d_nm, 'grid': f"{grid.nx}x{grid.ny}", 'seconds': round(time.time() - t0, 1)}
 
 
-def main(run_name, include_all=False, d_nm=10.0, config_module='survey_config'):
+MIN_CORE_FRACTION = 0.05  # exclude pseudo-modes (e.g. substrate/window-edge pinned, not core-
+# guided at all) found 2026-10-16/17 on an AlN-substrate ridge: a "TM00[S]" candidate there had
+# 99.9% of its power pinned at the simulation window's bottom edge (power_in_core ~0.0007) and a
+# n_eff essentially frozen across an entire 8-point composition sweep -- a numerical artifact of
+# the high-index AlN substrate supporting its own window-edge mode, not a real ridge-guided pump.
+# Real ridge-guided candidates seen so far carry power_in_core ~0.1-0.4+; 0.05 is a generous floor.
+
+
+def main(run_name, include_all=False, d_nm=10.0, config_module='survey_config',
+         min_core_fraction=MIN_CORE_FRACTION):
     import importlib
     cfg = importlib.import_module(config_module).SETTINGS
     run_dir = os.path.join(HERE, 'runs', run_name)
@@ -68,6 +77,11 @@ def main(run_name, include_all=False, d_nm=10.0, config_module='survey_config'):
         rows = [r for r in csv.DictReader(f) if r.get('export_path')]
     if not include_all:
         rows = [r for r in rows if r['cerenkov_allowed_any'] == 'True']
+    n_before = len(rows)
+    rows = [r for r in rows if not r.get('power_in_core') or float(r['power_in_core']) >= min_core_fraction]
+    if n_before != len(rows):
+        print(f"excluded {n_before - len(rows)} pump(s) below power_in_core={min_core_fraction} "
+              f"(pseudo-mode filter -- see MIN_CORE_FRACTION)")
     out_path = os.path.join(run_dir, 'cerenkov.csv')
     done = set()
     if os.path.exists(out_path):
@@ -93,4 +107,6 @@ def main(run_name, include_all=False, d_nm=10.0, config_module='survey_config'):
 if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     d = next((float(a.split('=')[1]) for a in sys.argv if a.startswith('--d=')), 10.0)
-    main(args[0], include_all='--all' in sys.argv, d_nm=d)
+    config_module = next((a.split('=', 1)[1] for a in sys.argv if a.startswith('--config=')),
+                         'survey_config')
+    main(args[0], include_all='--all' in sys.argv, d_nm=d, config_module=config_module)

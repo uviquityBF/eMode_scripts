@@ -114,11 +114,22 @@ class Ridge:
     """Trapezoidal AlN ridge (full etch) on a sapphire substrate, conformal SiO2 top clad --
     exactly emode_helpers.setup_waveguide's geometry. Params (nm / deg):
     h_core, w_core, sidewall_angle=5, substrate_height=1000, topclad_height=800.
+
+    CUSTOM SUBSTRATE (added 2026-10-16, Cerenkov study row 8/row 10): substrate_material is
+    normally a plain EMode-database name (e.g. 'Al2O3'), passed straight through to em.shape() --
+    fine for a built-in material, but an AlN substrate needs this project's OWN fitted equation
+    (AlN_EQ_O/AlN_EQ_E), same as the core, not a database lookup (nothing in EMode's own database
+    is this project's ellipsometry fit). Set substrate_eq_o (+ optionally substrate_eq_e, else
+    treated isotropic at substrate_eq_o) to register a second custom material distinct from the
+    core's -- anisotropic by default per the row 10 "anisotropic-vs-isotropic AlN-substrate
+    treatment" decision (user direction, 2026-10-12: anisotropic). cerenkov_regions() and
+    region_masks() pick up the same registered name automatically via _substrate_material_name().
     """
     family = 'ridge'
     symmetric_x = True
     defaults = {'sidewall_angle': 5.0, 'substrate_height': 1000.0, 'topclad_height': 800.0,
-                'substrate_material': 'Al2O3', 'topclad_material': 'SiO2',
+                'substrate_material': 'Al2O3', 'substrate_eq_o': None, 'substrate_eq_e': None,
+                'topclad_material': 'SiO2',
                 'core_eq_o': AlN_EQ_O, 'core_eq_e': AlN_EQ_E, 'core_chi2': 'AlN'}
 
     def __init__(self, **params):
@@ -131,12 +142,21 @@ class Ridge:
     def window_width(self):
         return max(2000.0, self.params['w_core'] + 1600.0)
 
+    def _substrate_material_name(self):
+        return 'custom_substrate' if self.params['substrate_eq_o'] else self.params['substrate_material']
+
     def build(self, em, roughness_rms=(0.0, 0.0), correlation_length=(0.0, 0.0)):
         p = self.params
         aniso = f"[{p['core_eq_o']},{p['core_eq_e']},{p['core_eq_o']}]"
+        substrate_material = self._substrate_material_name()
+        if p['substrate_eq_o']:
+            sub_eq_e = p['substrate_eq_e'] or p['substrate_eq_o']
+            sub_aniso = f"[{p['substrate_eq_o']},{sub_eq_e},{p['substrate_eq_o']}]"
+            em.add_material(name=substrate_material, refractive_index_equation=sub_aniso,
+                            wavelength_unit='um')
         pmh.setup_waveguide(em, aniso, p['h_core'], p['w_core'],
                             window_width=self.window_width, boundary_condition='0A',
-                            substrate_material=p['substrate_material'],
+                            substrate_material=substrate_material,
                             substrate_height=p['substrate_height'],
                             topclad_material=p['topclad_material'],
                             topclad_height=p['topclad_height'],
@@ -160,7 +180,7 @@ class Ridge:
         core = self.core_mask(x, y)
         substrate = (yy < p['substrate_height']) & ~core
         topclad = (yy >= p['substrate_height']) & ~core
-        return {'Substrate': (substrate, p['substrate_material']),
+        return {'Substrate': (substrate, self._substrate_material_name()),
                 'core': (core, 'AlN'),
                 'TopClad': (topclad, p['topclad_material'])}
 
@@ -205,14 +225,15 @@ class Ridge:
         Substrate and top clad are treated as bulk (thick in the real device)."""
         p = self.params
         out = []
-        for name, mat in (('substrate', p['substrate_material']), ('topclad', p['topclad_material'])):
+        for name, mat in (('substrate', self._substrate_material_name()), ('topclad', p['topclad_material'])):
             n = _scalar_index(em.refractive_index(material=mat, wavelength=wavelength_sh_nm))
             out.append({'name': f"{name}:{mat}", 'n': n, 'extent': 'bulk'})
         return out
 
     def describe(self):
         p = self.params
-        return f"ridge h={p['h_core']:g} w={p['w_core']:g} sw={p['sidewall_angle']:g}"
+        sub = f" sub={self._substrate_material_name()}" if p['substrate_eq_o'] else ''
+        return f"ridge h={p['h_core']:g} w={p['w_core']:g} sw={p['sidewall_angle']:g}{sub}"
 
 
 def _trapezoid(xx, yy, y0, height, w_bottom, sidewall_angle, x_center=0.0):

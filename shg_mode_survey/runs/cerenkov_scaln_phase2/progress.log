@@ -1,0 +1,97 @@
+[17:46:19] run 'cerenkov_scaln_phase2' (survey_config_cerenkov_scaln_phase2): 24 geometries, 0 already done, 24 to do
+[17:46:19] [1/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (a0b2535eac3c)
+[17:47:16]   pumps (35s): TM00[A] 2.1725, TM10?[S] 2.1629, TM00[A] 2.1490, TE00[S] 2.0737 | TE10[A] 2.0675
+[17:47:17]   done in 58s; no phase matches
+[17:47:17]   elapsed 1.0 min, est. remaining 22.3 min
+[17:47:17] [2/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (d32cf56ac6c1)
+[17:48:09]   pumps (30s): TM00[A] 2.1802, TM00[S] 2.1713, TM01[A] 2.1576, TE00[S] 2.1002
+[17:48:10]   done in 53s; no phase matches
+[17:48:10]   elapsed 1.8 min, est. remaining 20.3 min
+[17:48:10] [3/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (ae7c7008a8ee)
+[17:48:58]   pumps (27s): TM00[A] 2.1823, TM01[A] 2.1763, TM00[S] 2.1735
+[17:48:59]   done in 49s; no phase matches
+[17:48:59]   elapsed 2.7 min, est. remaining 18.7 min
+[17:48:59] [4/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (11ff62f292f2)
+[17:49:58]   pumps (35s): TM00[A] 2.1727, TM10?[S] 2.1629, TM00[A] 2.1492, TE00[S] 2.0757 | TE10[A] 2.0675
+[17:49:58]   done in 59s; no phase matches
+[17:49:58]   elapsed 3.7 min, est. remaining 18.3 min
+[17:49:58] [5/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (9e3baa22a6c8)
+[17:50:50]   pumps (30s): TM00[A] 2.1802, TM00[S] 2.1713, TM01[A] 2.1579, TE00[S] 2.1003
+[17:50:51]   done in 53s; no phase matches
+[17:50:51]   elapsed 4.5 min, est. remaining 17.3 min
+[17:50:51] [6/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (da5d6fe6b21b)
+[17:51:37]   pumps (24s): TM00[A] 2.1823, TM01[A] 2.1763, TM00[S] 2.1735
+[17:51:38]   done in 47s; no phase matches
+[17:51:38]   elapsed 5.3 min, est. remaining 16.0 min
+[17:51:38] [7/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (5fe94a5f6b54)
+[17:52:38]   pumps (38s): TM00[A] 2.1730, TM10?[S] 2.1629, TM00[A] 2.1494, TE00[S] 2.0809 | TE10[A] 2.0675
+[17:52:39]   done in 61s; no phase matches
+[17:52:39]   elapsed 6.3 min, est. remaining 15.4 min
+[17:52:39] [8/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (c7460cf3704c)
+[17:53:31]   pumps (31s): TM00[A] 2.1802, TM00[S] 2.1713, TM01[A] 2.1583, TE00[S] 2.1006
+[17:53:32]   done in 53s; no phase matches
+[17:53:32]   elapsed 7.2 min, est. remaining 14.4 min
+[17:53:32] [9/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (b48813d290c4)
+[17:54:19]   pumps (25s): TM00[A] 2.1823, TM01[A] 2.1764, TM00[S] 2.1735
+[17:54:20]   done in 48s; no phase matches
+[17:54:20]   elapsed 8.0 min, est. remaining 13.4 min
+[17:54:20] [10/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (521bb0c7f45a)
+[17:55:22]   pumps (41s): TM00[A] 2.1733, TM10?[S] 2.1629, TM00[A] 2.1498, TE00[S] 2.0912 | TE10[A] 2.0675
+[17:55:23]   done in 63s; no phase matches
+[17:55:23]   elapsed 9.1 min, est. remaining 12.7 min
+[17:55:23] [11/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (1b5c10a309e6)
+[17:56:16]   pumps (31s): TM00[A] 2.1802, TM00[S] 2.1713, TM01[A] 2.1589, TE00[S] 2.1014
+[17:56:17]   done in 54s; no phase matches
+[17:56:17]   elapsed 10.0 min, est. remaining 11.8 min
+[17:56:17] [12/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (8d048b479d53)
+[17:57:06]   pumps (26s): TM00[A] 2.1823, TM01[A] 2.1764, TM00[S] 2.1735
+[17:57:06]   done in 50s; no phase matches
+[17:57:06]   elapsed 10.8 min, est. remaining 10.8 min
+[17:57:06] [13/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (d880140e8aab)
+[17:58:01]   pumps (34s): TM00[A] 2.1738, TM10?[S] 2.1629, TM00[A] 2.1506, TE00[S] 2.1084 | TE01[S] 2.0691
+[17:58:02]   done in 56s; no phase matches
+[17:58:02]   elapsed 11.7 min, est. remaining 9.9 min
+[17:58:02] [14/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (6a75caa616b4)
+[17:58:57]   pumps (33s): TM00[A] 2.1803, TM00[S] 2.1713, TM01[A] 2.1600, TE00[S] 2.1094
+[17:58:58]   done in 56s; no phase matches
+[17:58:58]   elapsed 12.7 min, est. remaining 9.0 min
+[17:58:58] [15/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (c2d6d452412a)
+[17:59:50]   pumps (31s): TM00[A] 2.1823, TM01[A] 2.1766, TM00[S] 2.1735
+[17:59:51]   done in 53s; no phase matches
+[17:59:51]   elapsed 13.5 min, est. remaining 8.1 min
+[17:59:51] [16/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (19e49882cedc)
+[18:00:47]   pumps (35s): TM00[A] 2.1772, TM10?[S] 2.1629, TM01[A] 2.1608, TE00[S] 2.1472 | TE01[S] 2.0719
+[18:00:47]   done in 57s; no phase matches
+[18:00:47]   elapsed 14.5 min, est. remaining 7.2 min
+[18:00:47] [17/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (f44087f0c929)
+[18:01:45]   pumps (36s): TM00[A] 2.1808, TM00[S] 2.1713, TM01[A] 2.1696, TE00[S] 2.1470
+[18:01:46]   done in 59s; no phase matches
+[18:01:46]   elapsed 15.5 min, est. remaining 6.4 min
+[18:01:46] [18/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (bf8863e50c24)
+[18:02:34]   pumps (25s): TM00[A] 2.1925, TM01[A] 2.1822, TM02[A] 2.1761
+[18:02:34]   done in 48s; no phase matches
+[18:02:34]   elapsed 16.3 min, est. remaining 5.4 min
+[18:02:34] [19/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (598f4f4b1fb7)
+[18:03:33]   pumps (38s): TM00[A] 2.2216, TE00[S] 2.2102, TM01[A] 2.1719, TM10[S] 2.1630 | TE01[S] 2.0839
+[18:03:34]   done in 60s; no phase matches
+[18:03:34]   elapsed 17.3 min, est. remaining 4.5 min
+[18:03:34] [20/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (06cb9ab29e48)
+[18:04:27]   pumps (31s): TM00[A] 2.2216, TE00[S] 2.2102, TM01[A] 2.1800, TM00[S] 2.1713
+[18:04:28]   done in 54s; no phase matches
+[18:04:28]   elapsed 18.1 min, est. remaining 3.6 min
+[18:04:28] [21/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (dace9e5d52d0)
+[18:05:23]   pumps (34s): TM00[A] 2.2561, TE00[S] 2.1990, TM01[A] 2.1823, TM02[A] 2.1768
+[18:05:24]   done in 56s; no phase matches
+[18:05:24]   elapsed 19.1 min, est. remaining 2.7 min
+[18:05:24] [22/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (2e526790e384)
+[18:06:22]   pumps (35s): TM00[A] 2.2766, TE00[S] 2.2687 | TM01[A] 2.1737, TM10[S] 2.1631, TE01[S] 2.1219
+[18:06:22]   done in 59s; no phase matches
+[18:06:22]   elapsed 20.1 min, est. remaining 1.8 min
+[18:06:22] [23/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (1b370467531d)
+[18:07:19]   pumps (36s): TM00[A] 2.2766, TE00[S] 2.2687, TM01[A] 2.1803 | TM00[S] 2.1713, TE01[S] 2.1234
+[18:07:20]   done in 57s; no phase matches
+[18:07:20]   elapsed 21.0 min, est. remaining 0.9 min
+[18:07:20] [24/24] ridge h=350 w=400 sw=5 sub=custom_substrate  (5fcea5d2f58c)
+[18:08:17]   pumps (34s): TM00[A] 2.3151, TE00[S] 2.2570 | TM01[A] 2.1980, TM02[A] 2.1822
+[18:08:18]   done in 58s; no phase matches
+[18:08:18]   elapsed 22.0 min, est. remaining 0.0 min

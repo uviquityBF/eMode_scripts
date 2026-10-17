@@ -1,0 +1,33 @@
+[20:42:39] run 'cerenkov_scaln_angle_phase1' (survey_config_cerenkov_scaln_angle): 8 geometries, 0 already done, 8 to do
+[20:42:39] [1/8] ridge h=350 w=400 sw=5 sub=custom_substrate  (6ad067f1198a)
+[20:43:34]   pumps (33s): TM00[A] 2.1802, TM00[S] 2.1713, TM01[A] 2.1576, TE00[S] 2.1002
+[20:43:35]   done in 56s; no phase matches
+[20:43:35]   elapsed 0.9 min, est. remaining 6.6 min
+[20:43:35] [2/8] ridge h=350 w=400 sw=5 sub=custom_substrate  (d749d81b03b9)
+[20:44:29]   pumps (32s): TM00[A] 2.1802, TM00[S] 2.1713, TM01[A] 2.1579, TE00[S] 2.1003
+[20:44:30]   done in 55s; no phase matches
+[20:44:30]   elapsed 1.9 min, est. remaining 5.6 min
+[20:44:30] [3/8] ridge h=350 w=400 sw=5 sub=custom_substrate  (48fc25b50f95)
+[20:45:25]   pumps (32s): TM00[A] 2.1802, TM00[S] 2.1713, TM01[A] 2.1583, TE00[S] 2.1006
+[20:45:25]   done in 55s; no phase matches
+[20:45:25]   elapsed 2.8 min, est. remaining 4.6 min
+[20:45:25] [4/8] ridge h=350 w=400 sw=5 sub=custom_substrate  (c44de9f496bf)
+[20:46:22]   pumps (33s): TM00[A] 2.1802, TM00[S] 2.1713, TM01[A] 2.1589, TE00[S] 2.1014
+[20:46:22]   done in 57s; no phase matches
+[20:46:22]   elapsed 3.7 min, est. remaining 3.7 min
+[20:46:22] [5/8] ridge h=350 w=400 sw=5 sub=custom_substrate  (fc1925e2e5ca)
+[20:47:20]   pumps (34s): TM00[A] 2.1803, TM00[S] 2.1713, TM01[A] 2.1600, TE00[S] 2.1094
+[20:47:21]   done in 59s; no phase matches
+[20:47:21]   elapsed 4.7 min, est. remaining 2.8 min
+[20:47:21] [6/8] ridge h=350 w=400 sw=5 sub=custom_substrate  (c63db8a39b73)
+[20:48:19]   pumps (36s): TM00[A] 2.1808, TM00[S] 2.1713, TM01[A] 2.1696, TE00[S] 2.1470
+[20:48:20]   done in 59s; no phase matches
+[20:48:20]   elapsed 5.7 min, est. remaining 1.9 min
+[20:48:20] [7/8] ridge h=350 w=400 sw=5 sub=custom_substrate  (c8fcd0e11c33)
+[20:49:16]   pumps (34s): TM00[A] 2.2216, TE00[S] 2.2102, TM01[A] 2.1800, TM00[S] 2.1713
+[20:49:17]   done in 57s; no phase matches
+[20:49:17]   elapsed 6.6 min, est. remaining 0.9 min
+[20:49:17] [8/8] ridge h=350 w=400 sw=5 sub=custom_substrate  (1c9e44699db6)
+[20:50:15]   pumps (36s): TM00[A] 2.2766, TE00[S] 2.2687, TM01[A] 2.1803 | TM00[S] 2.1713, TE01[S] 2.1234
+[20:50:16]   done in 60s; no phase matches
+[20:50:16]   elapsed 7.6 min, est. remaining 0.0 min

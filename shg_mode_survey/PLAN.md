@@ -1566,3 +1566,90 @@ Both rows 1.2 and 5.3 now marked done in `build_study_plan_report.py`'s MATRIX; 
 
 **Everything from the 2026-10-14 "row 1.2 + row 5.3, then discuss 8/9" plan is now complete.**
 Next: rows 8/9 (embedded-Cerenkov) -- user wants to discuss specific geometries before building.
+
+### Cerenkov study (row 8) phase 1: composition-only angle scan (2026-10-16)
+
+User redirected the row 8 design: skip the originally-floated "ScAlN channel embedded in blanket
+AlN" geometry (Hybrid-class reuse) in favor of a REAL device question -- a ScAlN RIDGE on an
+actual AlN SUBSTRATE (the out-coupling direction), motivated by fabrication reality (HexaTech-grade
+AlN substrates for UV transmission are the real constraint on this working at all; MOCVD AlN caps
+only grow high-purity up to ~1um before cracking; a speculative surface-structuring idea to
+suppress UV guided modes entirely, not yet designed). Confirmed via code read: `cerenkov_regions()`
+already treats substrate as bulk/infinite regardless of simulated thickness, so no convergence
+sweep is needed for this structure at all (a real simplification vs. the embedded-shell idea).
+
+**Implemented**: `geometry.Ridge` gained `substrate_eq_o`/`substrate_eq_e` (anisotropic, per the
+existing row 10 "anisotropic AlN-substrate" decision, user direction 2026-10-12) -- registers a
+second custom material distinct from the core's, reusing this project's own AlN_EQ_O/AlN_EQ_E (no
+new materials data). `_substrate_material_name()` keeps `build`/`region_masks`/`cerenkov_regions`
+consistent. Verified against `test_geometry.py` (no regressions) before any EMode call.
+
+**Phase 1 ran via `survey.py`'s existing `--pumps-only` mode** (no new script) -- the Cerenkov angle
+(`arccos(n_eff_pump/n_substrate_at_SH)`) is pure linear optics, needs no chi(2)/d33 and no SH
+phase-matching search, so this reused `characterize_pump()`'s already-built
+`cerenkov_regions()`/`cerenkov_flags()` call entirely as-is. New
+`survey_config_cerenkov_scaln_angle.py`: fixed ridge geometry (h=350/w=400, the established good
+range), ScAlN core swept across all 8 Baumler-fitted (pole-fixed) compositions, AlN substrate.
+ScAlN core treated isotropically (Baumler doesn't resolve o/e); substrate stays properly
+anisotropic. Ran `cerenkov_scaln_angle_phase1`: 8/8 ok, 7.6 min total.
+
+**Result**: Cerenkov-into-substrate confirmed across the whole range tested. Dominant TM00[A] pump
+mode's angle: ~34.2 deg flat below ~20% Sc, then drops to 32.6 deg (32% Sc) and 30.3 deg (41% Sc)
+-- real movement only once the core/substrate index contrast becomes significant. The 0%-Sc point
+isn't fully trustworthy (core uses Baumler's digitized AlN fit, substrate uses this project's own
+ellipsometry fit -- two independent measurements of nominally the same material, so its small
+nonzero contrast there is likely fit noise). Also noted: TM00[S] stays pinned at ~34.56 deg across
+the ENTIRE range while TM00[A]/TE00[S] both drift -- possibly a substrate-guided (not core-guided)
+mode, not yet investigated.
+
+Next: discuss phase 2 (geometric variants) with user, informed by this trend and the fabrication
+comments above.
+
+### Cerenkov study (row 8) phase 2: per-composition kappa + substrate-thickness finding (2026-10-17)
+
+**Methodology fixes before the real campaign**: (1) added `power_in_core` to
+`characterize_pump()`/`PUMP_FIELDS` (survey.py) -- the pseudo-mode fix motivated by the TM00[S]
+artifact found 2026-10-16/17. (2) `cerenkov_run.py` now filters on `power_in_core >=
+MIN_CORE_FRACTION` (0.05) by default before running any FDFD solve -- excluded 68/99 (69%) of all
+pump candidates found in phase 2's scan as pseudo-modes, confirming this matters a lot on an
+AlN-substrate structure. (3) `cerenkov_run.py`'s CLI was missing `--config=` parsing entirely
+(silently always used plain 'survey_config', generic AlN d33=4.7) -- added it; caught this by the
+first real run crashing immediately with a clear KeyError (no wasted time, no bad data).
+
+**New `survey_config_cerenkov_scaln_phase2.py`**: ridge fixed at h=350/w=400 (phase 1's baseline,
+per user direction to keep geometry minimal), 8 ScAlN compositions x 3 substrate thicknesses
+(500/1000/2000nm, spanning below/at/above MOCVD's ~1um practical cracking ceiling -- user comment
+2026-10-16) = 24 geometries. Per-composition d33/d31 table built (23/32/41% reuse rows
+5.1-5.3's exact established values; 0/6/14/17% newly interpolated, 0% from AlN's own independent
+value not the Yoshioka series, 41% still the only extrapolated/AT-RISK point).
+
+**Timing lesson** (flagged live per user's 20h-budget instruction): a single default-resolution
+(d_nm=10) FDFD kappa solve appeared to take >20 minutes and was killed as a result -- turned out to
+be CPU contention with the concurrently-running EMode pumps-only scan, not the solver's real cost.
+Once that scan finished, the identical solve took 173s. Real cost for all 31 filtered modes: ~87
+min total. Resolution-convergence check (d_nm 10/15/20/30) was NON-monotonic (1.86e-4, 4.11e-4,
+6.34e-4, 1.97e-4) despite a clean energy-balance check (0.993-0.999) at every resolution -- flagged
+as a precision caveat on absolute kappa values (used the standard d_nm=10 throughout regardless).
+
+**Results**: ALL 31 solves completed, balance 0.993-0.999 throughout (energy conservation holds).
+Radiation goes almost entirely into the substrate (topclad components are ~1e-32 to 1e-34 --
+confirms phase 1's finding that SiO2 never satisfies the Cerenkov condition). kappa spans ~7 orders
+of magnitude (2.8e-7 to 1.46 %/W/cm) across the dataset.
+
+- **Composition**: strong, consistent increase with Sc% (best kappa per composition: 9%~4e-5,
+  17%~4e-3, 23%~0.01-0.22, 32%~0.002-0.48, 41%~0.036-1.46 %/W/cm) -- as expected from phase 1's
+  angle trend plus the larger d33.
+- **Substrate thickness -- the headline finding, needs user input before going further**: kappa
+  jumps 10-200x going from 1000nm to 2000nm substrate at the SAME composition (23%: 11x; 32%:
+  202x; 41%: 40x) -- 500nm and 1000nm are close to each other, but 2000nm is dramatically higher
+  at every composition where the comparison exists. This sits in direct tension with the user's
+  own fab-reality comment (2026-10-16): MOCVD AlN only grows high-purity up to ~1um before
+  cracking, i.e. the strongest coupling found appears specifically BEYOND the practically
+  achievable thickness. Not yet understood whether this is a genuine physical effect (the radiated
+  field needs real "room" in the substrate to fully develop) or partly a modeling artifact tied to
+  how much AlN sits under the ridge mode's evanescent tail -- only 3 thickness points sampled, no
+  intermediate (e.g. 1500nm) data point exists yet to see if the trend is a smooth ramp or a
+  sudden threshold. Flagged to user rather than extending the campaign unilaterally.
+
+Not yet committed/pushed as of this entry -- planned immediately after, per user direction
+2026-10-17 ("once it is done please commit and push").

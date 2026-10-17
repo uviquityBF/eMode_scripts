@@ -60,8 +60,8 @@ GEOM_FIELDS = ['fingerprint', 'family', 'params', 'status', 'n_pump_modes', 'n_c
                'n_refined', 'seconds', 'timestamp', 'error']
 PUMP_FIELDS = ['fingerprint', 'family', 'params', 'pump_id', 'label', 'sym_class', 'te_fraction',
                'n_eff_center', 'n_eff_min', 'n_eff_max', 'wavelength_pump_center',
-               'scattering_dB_per_m', 'absorption_dB_per_m', 'A_eff_um2', 'cerenkov_allowed_any',
-               'cerenkov_best_angle_deg', 'cerenkov_json', 'export_path']
+               'scattering_dB_per_m', 'absorption_dB_per_m', 'A_eff_um2', 'power_in_core',
+               'cerenkov_allowed_any', 'cerenkov_best_angle_deg', 'cerenkov_json', 'export_path']
 CROSS_FIELDS = ['fingerprint', 'family', 'params', 'status', 'pump_id', 'pump_label',
                 'pump_sym_class', 'pump_te_fraction', 'sh_label', 'sh_te_fraction', 'sh_track',
                 'wavelength_sh', 'wavelength_sh_corrected', 'n_eff_pump', 'n_eff_sh',
@@ -373,7 +373,7 @@ def characterize_pump(em, geom, cfg, t, lam_center, export_path=None):
             'A_eff': sp.intensity_effective_area_um2(modes[i], dA), 'cerenkov': flags,
             'cerenkov_any': bool(allowed),
             'cerenkov_best_angle': max((f['angle_deg'] for f in allowed), default=float('nan')),
-            'similarity': sims[i]}
+            'similarity': sims[i], 'power_in_core': sp.power_fraction_in(modes[i], mask)}
 
 
 def sh_scan(em, geom, cfg, lam_sh, pumps, groups):
@@ -655,6 +655,7 @@ def main(run_name, config_module='survey_config', pumps_only=False):
                 'wavelength_pump_center': 2 * float(np.mean(p['lam_pts'])),
                 'scattering_dB_per_m': p['info']['scattering'],
                 'absorption_dB_per_m': p['info']['absorption'], 'A_eff_um2': p['info']['A_eff'],
+                'power_in_core': p['info']['power_in_core'],
                 'cerenkov_allowed_any': p['info']['cerenkov_any'],
                 'cerenkov_best_angle_deg': p['info']['cerenkov_best_angle'],
                 'cerenkov_json': json.dumps(p['info']['cerenkov']),
