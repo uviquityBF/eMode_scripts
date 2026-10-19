@@ -77,7 +77,33 @@ def test_aniso_changes_result():
     assert b['total_W_per_m'] != a['total_W_per_m']
 
 
+def test_tensor_matches_direct():
+    """K-matrix method (cerenkov_tensor + kappa_for) must reproduce the direct solve for any tensor."""
+    g = ridge(1000.0)
+    direct = kappa(g, core_eq_complex=None)
+    n_reg = {'substrate': geo.eval_index_equation(geo.AlN_EQ_E, LAM), 'topclad': 1.524}
+    x = np.arange(-600.0, 600.1, 10.0)
+    y = np.arange(g.params['substrate_height'] - 300.0, g.params['substrate_height'] + 650.1, 10.0)
+    X, Y = np.meshgrid(x, y)
+    yc = g.params['substrate_height'] + 175.0
+    ey = np.exp(-(X / 150.0) ** 2 - ((Y - yc) / 120.0) ** 2).astype(complex) * 1e5
+    ex = 0.3 * np.exp(-(X / 200.0) ** 2 - ((Y - yc) / 100.0) ** 2).astype(complex) * 1e5
+    # direct solve with a pump that also has Ex, then compare tensor-resolved result
+    pump = {'x': x, 'y': y, 'Ex': ex, 'Ey': ey, 'Ez': 0 * ey}
+    grid = cr.domain_for(g, 10.0)
+    eps = g.eps_fn(LAM, n_reg)
+    d_fn = g.d_fn({'AlN': {'d33': 30.0, 'd31': 1.0, 'd15': 2.0}})
+    dd = cf.cerenkov_from_pump(grid, eps, d_fn, pump, LAM, N_EFF)
+    tens = cf.cerenkov_tensor(grid, eps, lambda X_, Y_: g.core_mask(X_[0, :], Y_[:, 0]).astype(float),
+                              pump, LAM, N_EFF)
+    k = cf.kappa_for(tens, 30.0, 1.0, 2.0)
+    r = k['kappa'] / dd['total_W_per_m']
+    print(f'tensor-resolved kappa / direct = {r:.5f}; work ratio {k["work"] / dd["source_work_W_per_m"]:.5f}')
+    assert abs(r - 1) < 1e-3 and abs(k['work'] / dd['source_work_W_per_m'] - 1) < 1e-3
+
+
 if __name__ == '__main__':
+    test_tensor_matches_direct()
     test_window(); test_layer_matches_halfspace(); test_absorption()
     test_aniso_changes_result(); test_thickness_oscillation()
     print('all passed')

@@ -242,7 +242,9 @@ class Ridge:
         core_eps = {'Ex': n_o ** 2, 'Ey': n_e ** 2, 'Ez': n_o ** 2}
         if core_eq_complex:  # absorbing (n + ik) core, isotropic -- e.g. ScAlN's strong UV k
             z = eval_complex_index_equation(core_eq_complex, wavelength_sh_nm)
-            z = complex(z.real, core_k_scale * z.imag)  # k scaled for fit-uncertainty sensitivity
+            # keep the REAL index of the (pole-fixed) equation EMode used for the pump; take only k
+            # from the complex fit, scaled (core_k_scale=0 is exactly the lossless core)
+            z = complex(n_o, core_k_scale * z.imag)
             core_eps = {c: z ** 2 for c in core_eps}
         if aniso_substrate and p['substrate_eq_o']:
             s_o = eval_index_equation(p['substrate_eq_o'], wavelength_sh_nm)

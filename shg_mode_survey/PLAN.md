@@ -1730,3 +1730,90 @@ of the 50/50 index blend; (e) the lossy-core model for rows 5/5.x guided-SH cros
 same k(225) applies to the guided SH there.
 New tools: cerenkov_audit.py, cerenkov_scan.py (thickness/resolution scans from one pump),
 test_cerenkov_model.py, survey_config_cerenkov_scaln_fixwin.py (run `cerenkov_fixwin`).
+
+### Cerenkov row 8: loss-case x d33-scenario grid, 1D validation, common figure of merit (2026-10-19, later)
+
+User direction: ScAlN k(225 nm) cannot be measured, so track three loss cases ((a) lossless = most
+optimistic, (b) Baumler fit, (c) in between) and make the lossless case identifiable; also track how
+much of the optimistic d33 (Yoshioka sputtered, chosen 2026-10-12 as the "at risk" optimistic source)
+is present in each result (vs. MBE/Lee 2026: d33 ~ 0, d31 enhanced).
+
+**Bookkeeping built** (all EMode-free once pump exports exist; exports are gitignored):
+- `cerenkov_scenarios.py`: loss cases = multiples of the fitted k(225) (0, 0.05, 0.1, 0.25, 0.5, 1, 2;
+  0 is true lossless); d33 scenarios = `yoshioka` (working value), `frac_0.75/0.5/0.25/0` (fraction of
+  Yoshioka's enhancement over AlN 4.7/0.1 kept -- the "how much optimism" knob), `mbe_like` (d33 0.3,
+  d31 interpolated from the MBE table in Lee 2026).
+- `cerenkov_fdfd.cerenkov_tensor` + `kappa_for`: radiated power is a quadratic form in (d33, d31, d15), so
+  one factorization with 3 right-hand sides stores 3x3 matrices K (per side) and W; ANY tensor scenario
+  is then exact and free (`test_cerenkov_model.py::test_tensor_matches_direct`).
+- `cerenkov_cases.py` -> `runs/cerenkov_fixwin/cerenkov_cases.csv` (56 solves, d = 7.5 nm, 1000 nm AlN
+  substrate, bound pumps only): per pump x loss case: K, W entries, kappa/work/escape for every d33
+  scenario, plus `bias_2d_over_1d` (reliability flag, below). The core real index is the pole-fixed
+  equation the pump was solved with; only k is taken from the Baumler complex fit and scaled.
+- `cerenkov_fom.py` -> `cerenkov_fom.csv`: kappa -> efficiency per W with pump loss, next to the guided
+  rows' best loss-limited `peak_efficiency_pct_per_W`.
+
+**Validation of the lossy-core FDFD (new `cerenkov_1d.py`: independent 1D layered-film solver with
+exact outgoing BCs, energy-conserving, Richardson-converged to <1%)**:
+- `validate_cerenkov_1d_periodic.py` (2D code with periodic x == exactly 1D, so only the y-direction
+  discretization is tested): 2D/1D at d = 10/7.5/5/3/2 nm:
+  k=0.589 (32% fit): 0.93/0.94/0.96/0.97/0.98 (converges to 1); k=0.2: 1.22/1.13/1.17/1.13/1.15 (stalls
+  ~15% high); k=0.1: 2.4/1.8/2.0/1.7/1.8; k=0: 13/6/8/6/7 (n=3.0307) and ~100 (n=3.0).
+  => the fitted-k case is trustworthy (~5%); weaker loss is NOT resolvable by refining d.
+- Why: the lossless escaping flux is a cancellation/resonance quantity. 1D lossless flux changes 15x for a
+  1% change of film index (n=3.0 vs 3.0307) -- any sub-cell interface-position difference moves it by
+  large factors. The earlier "lossless" ridge kappa (0.0365 @ d=10) was numerical noise of this kind.
+- `cerenkov_1d_map.py` (slab proxy; use RATIOS only): escaping flux vs film index +-2% x thickness
+  350+-15 nm, normalised to the 'fit' median. Fit: 0.87-1.15 (robust). x0.5: 0.95-1.5; x0.25: 0.5-2.0.
+  x0.1/x0.05: 0.03-8 (2 orders of spread). Lossless: 1e-4 to ~15-20 (median ~1-9). x2: 0.45-0.6.
+  **So lossless is not reliably "most optimistic": it is a resonance that can be ~15-20x better OR ~1e4x
+  worse than the fit depending on thickness/index. The robust optimistic bound is a modest ~1.0-1.2x
+  (k x0.25-0.5), unless thickness/index are tuned onto a resonance.**
+
+**Ridge results (TM00 pump, 1000 nm AlN substrate, absorbing core, d = 7.5 nm; kappa in %/W/cm,
+Yoshioka d33). Cases with bias_2d_over_1d outside ~[0.8, 1.3] are flagged unreliable (*)**
+
+| Sc | lossless | x0.05 | x0.1 | x0.25 | x0.5 | fit | x2 |
+|---|---|---|---|---|---|---|---|
+| 27.5% (interp.) | 0.0081* | 0.0174* | 0.0324* | 0.0517 | 0.0552 | 0.0512 | 0.0353 |
+| 32% | 0.0027* | 0.0176* | 0.0334* | 0.0476 | 0.0493 | 0.0435 | 0.0259 |
+| 41% (extrap. d33) | 0.0301 | 0.0253 | 0.0304 | 0.0369 | 0.0390 | 0.0334 | 0.0181 |
+
+TE00: 1.0e-4..1.9e-4 at all loss cases (~300x smaller); TE01 (41%): 1.6e-3 (fit). Fraction of the
+generated SH that escapes at 'fit': 0.65%/0.32%/0.14% (27.5/32/41%) -- the rest is absorbed in the core.
+Loss moves kappa by only +-30% from x0.25 to fit and -45% at x2; low-k values are not determinable.
+
+**d33 optimism dominates the uncertainty (TM00 kappa at 'fit', %/W/cm; 27.5% / 32% / 41%)**:
+yoshioka 0.051/0.044/0.033; frac_0.75 0.031/0.026/0.020; frac_0.5 0.015/0.013/0.0095; frac_0.25
+0.0053/0.0043/0.0030; frac_0 (AlN d33) 4.6e-4/3.2e-4/1.4e-4; **mbe_like 2.1e-5/3.1e-5/3.8e-5**. i.e. ~1000x
+from Yoshioka to MBE-like, versus ~2x across all loss cases. TE pumps barely care (d31-driven):
+1.6e-4 (yoshioka) vs 7.7e-5 (mbe_like).
+
+**Common figure of merit** (small-conversion, per 1 W pump, pump propagation loss included; Cerenkov
+= pump-loss-limited long-device value kappa/(2a), a from pump scattering+absorption ~28 dB/cm ->
+L_eff,inf ~ 0.77 mm; BEFORE extraction -- both extraction paths need z-breaking structure since
+kz = n_p k0 exceeds the wavevector of air/SiO2/sapphire; guided numbers already include collection):
+- guided best (window-filtered): AlN ridge 1.3e-2 %/W (d33 AlN 4.7); bare rib 3.8e-3; ScAlN-41% strip
+  2.0e-6 (Yoshioka, k=fit); TiO2-loaded 8.5e-7; hybrid 4e-7; SiN-loaded 2.8e-7; ScAlN 9%/23% 1.4e-7/7.8e-8.
+- Cerenkov TM00, Yoshioka d33, k=fit: 4.0e-3 / 3.4e-3 / 2.8e-3 %/W (27.5/32/41%) = ~0.2-0.3x the best
+  guided (plain AlN ridge) and ~1000x every guided strip/hybrid row. With frac_0.5: ~1e-3; frac_0 (AlN
+  d33): 3.6e-5/2.5e-5/1.2e-5; mbe_like: ~2-3e-6 (comparable to the best guided ScAlN strip, 1000-4000x
+  below the plain AlN ridge). TE00: ~1e-5 (any d33 scenario within 2x). x0.25..x0.5 loss: +/-10% on these.
+- Guided rows' own tags (cerenkov_fom.GUIDED): rows 5.x use Yoshioka d33 AND the fitted ScAlN k (their
+  loss-case-(b) equivalent; lossless/x0.25 variants would need reprocessing from exports -- NOT done);
+  rows 1/1.2/3/4/6 use AlN d33 4.7.
+
+**Reading**: with the project's optimistic d33, a ScAlN-core Cerenkov device is competitive with the best
+guided geometry (0.2-0.3x) before extraction and orders of magnitude above the loaded/hybrid guided
+rows (whose SH loss caps them at ~10 um); if d33 enhancement does not materialize (MBE-like), it falls
+~1000x and is no better than the guided ScAlN strip rows. The ScAlN loss assumption barely matters
+(unless a resonance is engineered). The decisive unknowns are d33 and extraction efficiency.
+
+**Next**: (1) h_core/w_core pump-only sweep for 32/41% to map bound-pump region and kappa; (2) reprocess
+guided rows 5.x with ScAlN k x0.25 / lossless and d33 scenarios for like-for-like comparison; (3) pump loss
+budget (the ~28 dB/cm pump loss is from the survey's roughness/absorption model, ScAlN k(450) from the
+fit is ~1e-4 -- check); (4) extraction: z-periodic 3D unit cell, only if (1)-(3) keep Cerenkov
+competitive; (5) a better-conditioned discretization (or graded mesh in the core) if the low-k / lossless
+ridge value is ever needed -- not required for the fit/x0.25-x2 cases.
+Tools: cerenkov_1d.py, cerenkov_1d_map.py, validate_cerenkov_1d.py (wide-film 2D), validate_cerenkov_1d_periodic.py,
+cerenkov_scenarios.py, cerenkov_cases.py, cerenkov_fom.py.

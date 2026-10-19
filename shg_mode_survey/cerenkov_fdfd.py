@@ -66,15 +66,21 @@ def _deriv_1d(n, d_um):
     return sps.diags([-np.ones(n), np.ones(n - 1)], [0, 1], shape=(n, n), format='csr') / d_um
 
 
-def build_operators(grid, k0_um, kz_um, npml):
+def build_operators(grid, k0_um, kz_um, npml, periodic_x=False):
     """Sparse curl operators (in 1/um) with SC-PML. Returns (Ce, Ch) such that
     curl E = Ce @ [Ex,Ey,Ez] (H positions) and curl H = Ch @ [Hx,Hy,Hz] (E positions)."""
     nx, ny, d = grid.nx, grid.ny, grid.d * 1e-3
     Ix, Iy = sps.identity(nx, format='csr'), sps.identity(ny, format='csr')
     dxf, dyf = _deriv_1d(nx, d), _deriv_1d(ny, d)
+    if periodic_x:  # periodic (Bloch kx = 0) in x: wrap-around forward difference, no x PML
+        dxf = (sps.diags([-np.ones(nx), np.ones(nx - 1)], [0, 1], shape=(nx, nx), format='lil') / d)
+        dxf[nx - 1, 0] = 1.0 / d
+        dxf = dxf.tocsr()
     dxb, dyb = -dxf.T.tocsr(), -dyf.T.tocsr()
     # stretch: forward derivatives land on half nodes, backward on integer nodes
     sx_h, sx_i = _pml_s(nx, npml, k0_um, d, True), _pml_s(nx, npml, k0_um, d, False)
+    if periodic_x:
+        sx_h, sx_i = np.ones(nx, complex), np.ones(nx, complex)
     sy_h, sy_i = _pml_s(ny, npml, k0_um, d, True), _pml_s(ny, npml, k0_um, d, False)
     Dxf = sps.kron(Iy, sps.diags(1 / sx_h) @ dxf)
     Dxb = sps.kron(Iy, sps.diags(1 / sx_i) @ dxb)
@@ -93,13 +99,13 @@ def build_operators(grid, k0_um, kz_um, npml):
     return Ce, Ch
 
 
-def solve(grid, eps, P_over_eps0, lam_sh_nm, kz_per_m, npml=20):
+def solve(grid, eps, P_over_eps0, lam_sh_nm, kz_per_m, npml=20, periodic_x=False):
     """Driven solve. eps / P_over_eps0: dicts 'Ex','Ey','Ez' -> (ny, nx) arrays at the Yee
     positions (P_over_eps0 in V/m for a 1 W pump). Returns dict with E, H fields (SI),
     and diagnostics (see radiated_power)."""
     k0_um = 2 * np.pi / (lam_sh_nm * 1e-3)
     kz_um = kz_per_m * 1e-6
-    Ce, Ch = build_operators(grid, k0_um, kz_um, npml)
+    Ce, Ch = build_operators(grid, k0_um, kz_um, npml, periodic_x=periodic_x)
     epsv = np.concatenate([eps[c].ravel() for c in ('Ex', 'Ey', 'Ez')])
     A = (Ch @ Ce - k0_um ** 2 * sps.diags(epsv)).tocsc()
     b = k0_um ** 2 * np.concatenate([P_over_eps0[c].ravel() for c in ('Ex', 'Ey', 'Ez')])
@@ -205,3 +211,88 @@ def cerenkov_from_pump(grid, eps_fn, d_fn, pump, lam_sh_nm, n_eff_pump, npml=20,
     res = radiated_power(sol, P)
     res['solution'] = sol
     return res
+
+
+# ------------------------------------------------------------------ tensor-resolved (K-matrix) solve
+UNIT_TENSORS = ('d33', 'd31', 'd15')
+
+
+def _unit_source(Ep, d_mask, which, c):
+    """P/eps0 at Yee component c for a UNIT (1 pm/V... caller sets scale) tensor element `which`,
+    given the pump E at that component's own position and d_mask['d33'] etc. = region mask (0/1)
+    scaled by 1 m/V."""
+    ex, ey, ez = Ep['Ex'], Ep['Ey'], Ep['Ez']
+    m = d_mask
+    if which == 'd33':
+        return {'Ex': 0 * ex, 'Ey': m * ey * ey, 'Ez': 0 * ex}[c]
+    if which == 'd31':
+        return {'Ex': 0 * ex, 'Ey': m * (ex * ex + ez * ez), 'Ez': 0 * ex}[c]
+    return {'Ex': 2 * m * ex * ey, 'Ey': 0 * ex, 'Ez': 2 * m * ez * ey}[c]  # d15
+
+
+def _pair_sides(g, Ea, Ha, Eb, Hb, npml, margin):
+    """Bilinear Poynting flux through the box, S = 1/2 Re(Ea x Hb*), per side [W/m]."""
+    d_m = g.d * 1e-9
+    Ex = _centre(Ea['Ex'], 0); Ey = _centre(Ea['Ey'], 1); Ez = _centre(_centre(Ea['Ez'], 0), 1)
+    Hx = _centre(Hb['Hx'], 1); Hy = _centre(Hb['Hy'], 0); Hz = Hb['Hz']
+    Sx = 0.5 * np.real(Ey * np.conj(Hz) - Ez * np.conj(Hy))
+    Sy = 0.5 * np.real(Ez * np.conj(Hx) - Ex * np.conj(Hz))
+    i0, i1 = npml + margin, g.nx - npml - margin - 1
+    j0, j1 = npml + margin, g.ny - npml - margin - 1
+    return np.array([-np.sum(Sy[j0, i0:i1]), np.sum(Sy[j1, i0:i1]),
+                     -np.sum(Sx[j0:j1, i0]), np.sum(Sx[j0:j1, i1])]) * d_m   # bottom, top, left, right
+
+
+SIDES = ('bottom', 'top', 'left', 'right')
+
+
+def cerenkov_tensor(grid, eps_fn, mask_fn, pump, lam_sh_nm, n_eff_pump, npml=20, margin=4, supersample=1):
+    """Driven solve for each UNIT tensor element (d33, d31, d15 = 1 m/V, restricted to mask_fn's
+    chi(2) region) with ONE factorization. Radiated power for ANY real tensor c = (d33, d31, d15)
+    [m/V] is then  kappa = c^T K c  (K[side] 3x3, W 3x3 = source work incl. absorbed) -- so d33
+    scenarios (Yoshioka-optimistic vs MBE-like, etc.) cost nothing extra. Returns dict with
+    K_sides (4,3,3) in order SIDES, K_total (3,3), W (3,3) [W/m per W^2, per (m/V)^2]."""
+    Ep = {c: {comp: sample_on(grid, pump['x'], pump['y'], pump[comp], c) for comp in ('Ex', 'Ey', 'Ez')}
+          for c in ('Ex', 'Ey', 'Ez')}
+    masks = {c: mask_fn(*grid.positions(c)) if supersample == 1 else
+             _supersampled(lambda X, Y: mask_fn(X, Y), *grid.positions(c), grid.d, supersample)
+             for c in ('Ex', 'Ey', 'Ez')}
+    srcs = [{c: _unit_source(Ep[c], np.real(masks[c]), w, c) for c in ('Ex', 'Ey', 'Ez')} for w in UNIT_TENSORS]
+    eps = {c: (_supersampled(lambda X, Y, c=c: eps_fn(X, Y, c), *grid.positions(c), grid.d, supersample)
+               if supersample > 1 else eps_fn(*grid.positions(c), c)) for c in ('Ex', 'Ey', 'Ez')}
+    k0_um = 2 * np.pi / (lam_sh_nm * 1e-3)
+    kz_um = 2 * np.pi * n_eff_pump / (lam_sh_nm * 1e-3)
+    Ce, Ch = build_operators(grid, k0_um, kz_um, npml)
+    epsv = np.concatenate([eps[c].ravel() for c in ('Ex', 'Ey', 'Ez')])
+    A = (Ch @ Ce - k0_um ** 2 * sps.diags(epsv)).tocsc()
+    B = np.column_stack([k0_um ** 2 * np.concatenate([s[c].ravel() for c in ('Ex', 'Ey', 'Ez')]) for s in srcs])
+    lu = spla.splu(A)
+    e = lu.solve(B.astype(complex))
+    omega = 2 * np.pi * C0 / (lam_sh_nm * 1e-9)
+    N = grid.nx * grid.ny
+    shp = (grid.ny, grid.nx)
+    Es, Hs = [], []
+    for j in range(3):
+        ej = e[:, j]
+        hj = (Ce @ ej) * 1e6 / (1j * omega * MU0)
+        Es.append({c: ej[i * N:(i + 1) * N].reshape(shp) for i, c in enumerate(('Ex', 'Ey', 'Ez'))})
+        Hs.append({c: hj[i * N:(i + 1) * N].reshape(shp) for i, c in enumerate(('Hx', 'Hy', 'Hz'))})
+    Ks = np.zeros((4, 3, 3))
+    Wm = np.zeros((3, 3))
+    for i in range(3):
+        for j in range(3):
+            Ks[:, i, j] = _pair_sides(grid, Es[i], Hs[i], Es[j], Hs[j], npml, margin)
+            Wm[i, j] = 0.5 * omega * EPS0 * sum(np.sum(np.imag(np.conj(srcs[i][c]) * Es[j][c]))
+                                                for c in ('Ex', 'Ey', 'Ez')) * (grid.d * 1e-9) ** 2
+    Ks = 0.5 * (Ks + Ks.transpose(0, 2, 1))
+    Wm = 0.5 * (Wm + Wm.T)
+    return {'K_sides': Ks, 'K_total': Ks.sum(axis=0), 'W': Wm}
+
+
+def kappa_for(res, d33, d31, d15=None):
+    """kappa_escape, source work, and per-side split [%/W/cm] for a tensor in pm/V."""
+    d15 = d31 if d15 is None else d15
+    c = np.array([d33, d31, d15]) * 1e-12
+    sides = np.einsum('i,sij,j->s', c, res['K_sides'], c)
+    return {'kappa': float(sides.sum()), 'work': float(c @ res['W'] @ c),
+            'bottom': float(sides[0]), 'top': float(sides[1]), 'lateral': float(sides[2] + sides[3])}
