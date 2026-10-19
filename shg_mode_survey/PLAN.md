@@ -1653,3 +1653,80 @@ of magnitude (2.8e-7 to 1.46 %/W/cm) across the dataset.
 
 Not yet committed/pushed as of this entry -- planned immediately after, per user direction
 2026-10-17 ("once it is done please commit and push").
+
+### Cerenkov study (row 8): artifact audit, 2000 nm result retracted, absorbing-core model (2026-10-19)
+
+Review of phase 1/2 (user asked how sure we are the Cerenkov results are not modeling artifacts,
+what kappa is and what drives it, and whether a thicker AlN substrate matters). Work done on the
+laptop; EMode re-run of the pumps was needed for the window fix, everything else is EMode-free.
+
+**kappa definition**: dP_SH/dz = kappa * P_pump^2 (SH power radiated per unit length per W^2 pump;
+1/(W m) == %/(W cm)). Radiated power grows linearly in L (guided phase-matched SH grows as L^2:
+eta*L^2 vs kappa*L, crossover L = kappa/eta). Drivers: d33^2 for TM pumps (TE pumps only use
+d31/d15 -> ~100-1000x smaller), pump A_eff, the transverse wavevector k_y = k0*sqrt(n_sub^2-n_p^2)
+and the Fourier overlap of the source with it, and -- the big one found below -- absorption of the
+generated SH inside the ScAlN core.
+
+**Artifacts found (phase 1/2 numbers are NOT to be used as-is)**
+1. *Window clipping*: Ridge.build left window_height = h_core + 2000, so at substrate_height 2000
+   the core top sat AT the window edge and the SiO2 clad was cut off. All 2000 nm pumps were solved
+   without a clad; the "10-200x kappa jump at 2000 nm" was this. Fixed (Ridge.window_margin
+   auto-expands; check_window() raises; <=1000 nm substrates unchanged so old fingerprints/data
+   stay valid). Re-run (`cerenkov_fixwin`): bound-mode n_eff now identical at 500/1000/2000 nm
+   (41% TM00: 2.2766 at all three, was 2.315 at 2000) and kappa(2000) == kappa(1000) to <1%.
+2. *Unbound / slab pumps*: in a bulk AlN substrate a pump is only bound if n_eff > n_AlN(450 nm)
+   (n_e = 2.186 TM, n_o = 2.111 TE). Below that EMode returns box/slab modes of the finite
+   substrate layer (A_eff scales with substrate thickness; n_eff drifts run to run, e.g. 23% TM00
+   2.1772 vs 2.1691 for identical geometry). cerenkov_run.py now filters on `pump_is_bound`;
+   cerenkov_audit.py audits any run (phase 2: 12/99 pumps unflagged; fixwin: 23/56). Consequence:
+   a bulk-AlN substrate needs Sc >~ 27.5% for a TM00 pump to be bound (27.5% marginal: 2.1935).
+3. *kappa not converged in the lossless-core model*: kappa vs FDFD cell d = 15/12.5/10/7.5/5 nm
+   was 0.088/0.061/0.036/0.030/0.0086 (41% TM00) and non-monotonic at 32% -- ~10x spread, with
+   energy balance ~1.00 throughout (balance does not detect it). Sub-pixel (4x4 supersampled)
+   masks did not fix it. Cause: SH wavelength in the core is ~72-75 nm (n_core(225) ~ 3.0-3.1) =>
+   7 pts/wavelength at d = 10 and a source that nearly cancels over the 350 nm core.
+4. *Lossless core*: ScAlN's fitted k(225 nm) = 0.34/0.59/0.74 at 23/32/41% Sc (intensity
+   absorption length 53/30/24 nm). The FDFD built the core from the real-only equation, so the
+   SH generated in the core was never absorbed. With the complex core index
+   (`--core-k`, Ridge.eps_fn core_eq_complex) kappa converges: 41% TM00, d = 15/10/7.5/5 ->
+   0.0319/0.0263/0.0323/0.0283 %/W/cm (+-10%); source work constant to 0.5% (24.1-24.2).
+   ~99.9% of the generated SH is absorbed in the core; only a skin within ~1 absorption length of
+   the core/substrate interface radiates out. Previous lossless kappa values (2.4e-3, 3.6e-2,
+   1.46, ...) are superseded -- they were neither converged nor physically meaningful.
+
+**Current best numbers** (TM00 pump, 1000 nm AlN substrate, absorbing core, d = 7.5 nm,
+`cerenkov_corek_d7.5.csv`): kappa_escape = 0.046 (27.5% Sc, interpolated), 0.040 (32%), 0.032
+(41%) %/W/cm. Generated SH (source work) rises ~d33^2 (7.2 -> 12.7 -> 24.2 %/W/cm) but the escaping
+fraction falls (0.64% -> 0.32% -> 0.13%), so kappa_escape is nearly flat / mildly DEcreasing with
+Sc -- the lossless trend (strongly increasing) was fictional. TE00 pumps: 1.4e-4..1.5e-4 (~300x
+smaller); TE01 (41%) 1.5e-3. Radiation goes entirely into the substrate (top clad ~1e-35). Cerenkov
+angle 30-34 deg. Sensitivity to fitted k (41% TM00, d = 7.5): k x0.25 / 0.5 / 1 / 2 ->
+0.0353 / 0.0373 / 0.0323 / 0.0177 -- insensitive on the low side, -45% if k is 2x worse.
+CAVEATS: k(225 nm) is an extrapolated damped-Sellmeier fit to digitized Baumler data (not a
+measurement of our films); d33 at 41% is extrapolated/AT RISK; ScAlN core treated isotropic;
++-10% numerical spread; single geometry (h=350, w=400).
+
+**Substrate thickness / purity (new FDFD options, test_cerenkov_model.py, all EMode-free)**
+- Bulk AlN substrate: generation is independent of thickness (kappa(1000) == kappa(2000) to 5
+  digits). Thick is NOT better; the 2000 nm "gain" was the window artifact.
+- Finite AlN layer on sapphire (under_n = n_o(sapphire, 225 nm) = 1.85): SH is totally internally
+  reflected (~59 deg incidence vs ~44 deg critical) and stays in the layer -- zero flux downward,
+  all of it leaves laterally as slab-guided light. Fabry-Perot modulation of kappa with layer
+  thickness, period ~80 nm: 0.0035..0.017 over H = 500-700 nm (~5x, absorbing core), 0.020 at
+  1000 nm, 0.011 at 2000 nm (lossless core: 100x swings, 0.0005..0.10). Needs extraction (scatterer/
+  grating) to be useful; a 500/1000/2000 nm scan aliases this oscillation.
+- Anisotropic substrate (eps_yy = n_e^2, others n_o^2) vs scalar n_e: +4.7% (lossless core, d = 10).
+- Substrate extinction k: no effect on generation at the near-field box (700 nm); it only matters
+  for extraction through the wafer. Rough: radiation travels at ~30 deg to the axis, so a 0.5 mm
+  wafer means ~1 mm path; 3 dB over 1 mm needs alpha <~ 30 dB/cm (k <~ 1.2e-5). The project's
+  calibrated 100 dB/cm film-AlN loss would transmit only ~10% over that path.
+
+**Not done / next**: (a) pin down ScAlN k(225 nm) for our films (kappa is skin-limited, so it also
+depends on the pump field right at the core/substrate interface -- check pump export resolution);
+(b) h_core / w_core sweeps (skin-limited emission suggests a *thin* ScAlN layer may lose little;
+nonlinear layer only at the interface?); (c) extraction design for the finite-layer case (needs
+a z-periodic 3D / 2.5D model, deferred); (d) a real intermediate composition fit near 28% instead
+of the 50/50 index blend; (e) the lossy-core model for rows 5/5.x guided-SH cross-check -- the
+same k(225) applies to the guided SH there.
+New tools: cerenkov_audit.py, cerenkov_scan.py (thickness/resolution scans from one pump),
+test_cerenkov_model.py, survey_config_cerenkov_scaln_fixwin.py (run `cerenkov_fixwin`).

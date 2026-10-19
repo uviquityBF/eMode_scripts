@@ -163,7 +163,27 @@ def sample_on(grid, x_nm, y_nm, field, comp):
     return out.reshape(X.shape)
 
 
-def cerenkov_from_pump(grid, eps_fn, d_fn, pump, lam_sh_nm, n_eff_pump, npml=20):
+def _supersampled(fn, X, Y, d, s):
+    """Average fn(X + ox, Y + oy) over an s x s set of sub-cell offsets covering one cell centred on
+    each position (sub-pixel smoothing of staircased material/source boundaries). fn returns an
+    array or a dict of arrays."""
+    offs = (np.arange(s) + 0.5) / s - 0.5
+    acc = None
+    for oy in offs:
+        for ox in offs:
+            v = fn(X + ox * d, Y + oy * d)
+            if acc is None:
+                acc = {k: np.array(a, dtype=complex) for k, a in v.items()} if isinstance(v, dict)                     else np.array(v, dtype=complex)
+            elif isinstance(v, dict):
+                for k in acc:
+                    acc[k] = acc[k] + v[k]
+            else:
+                acc = acc + v
+    n = s * s
+    return {k: a / n for k, a in acc.items()} if isinstance(acc, dict) else acc / n
+
+
+def cerenkov_from_pump(grid, eps_fn, d_fn, pump, lam_sh_nm, n_eff_pump, npml=20, supersample=1):
     """Radiated SH power for a 1 W pump.
     eps_fn(X, Y, comp) -> eps array at those positions (lambda_SH); d_fn(X, Y) -> dict of d33,
     d31, d15 [m/V] arrays; pump = {'x','y','Ex','Ey','Ez'} (1 W normalized, nm grid)."""
@@ -172,12 +192,14 @@ def cerenkov_from_pump(grid, eps_fn, d_fn, pump, lam_sh_nm, n_eff_pump, npml=20)
     P = {}
     for c in ('Ex', 'Ey', 'Ez'):
         X, Y = grid.positions(c)
-        d = d_fn(X, Y)
+        d = _supersampled(d_fn, X, Y, grid.d, supersample) if supersample > 1 else d_fn(X, Y)
+        d = {k: np.real(v) for k, v in d.items()}
         ex, ey, ez = Ep[c]['Ex'], Ep[c]['Ey'], Ep[c]['Ez']
         P[c] = {'Ex': 2 * d['d15'] * ex * ey,
                 'Ey': d['d31'] * (ex * ex + ez * ez) + d['d33'] * ey * ey,
                 'Ez': 2 * d['d15'] * ez * ey}[c]
-    eps = {c: eps_fn(*grid.positions(c), c) for c in ('Ex', 'Ey', 'Ez')}
+    eps = {c: (_supersampled(lambda X, Y, c=c: eps_fn(X, Y, c), *grid.positions(c), grid.d, supersample)
+               if supersample > 1 else eps_fn(*grid.positions(c), c)) for c in ('Ex', 'Ey', 'Ez')}
     kz = 2 * np.pi * n_eff_pump / (lam_sh_nm * 1e-9)
     sol = solve(grid, eps, P, lam_sh_nm, kz, npml=npml)
     res = radiated_power(sol, P)

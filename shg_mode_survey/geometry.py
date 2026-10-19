@@ -142,6 +142,28 @@ class Ridge:
     def window_width(self):
         return max(2000.0, self.params['w_core'] + 1600.0)
 
+    WINDOW_SPARE_NM = 200.0  # headroom kept above the top clad inside the EMode window
+
+    @property
+    def window_margin(self):
+        """EMode window height = h_core + window_margin. The legacy fixed margin (2000 nm) is kept
+        whenever the structure fits (substrate <= ~1000 nm, so existing runs are unchanged), but it
+        is auto-expanded for thicker substrates. FOUND 2026-10-19: at substrate_height=2000 the
+        legacy window (h_core + 2000) put the core's top exactly AT the window edge, cutting the
+        whole SiO2 top clad off -- every pump mode in the 2000 nm Cerenkov runs was solved without
+        a clad (the apparent 10-200x kappa 'jump' at 2000 nm was this artifact)."""
+        p = self.params
+        return max(2000.0, p['substrate_height'] + p['topclad_height'] + self.WINDOW_SPARE_NM)
+
+    def check_window(self):
+        """Raise if the built structure (substrate + core + conformal clad) does not fit inside the
+        EMode window with WINDOW_SPARE_NM to spare."""
+        p = self.params
+        need = p['substrate_height'] + p['h_core'] + p['topclad_height'] + self.WINDOW_SPARE_NM
+        have = p['h_core'] + self.window_margin
+        if need > have + 1e-9:
+            raise ValueError(f"ridge structure ({need:g} nm incl. spare) exceeds EMode window height {have:g} nm")
+
     def _substrate_material_name(self):
         return 'custom_substrate' if self.params['substrate_eq_o'] else self.params['substrate_material']
 
@@ -154,8 +176,10 @@ class Ridge:
             sub_aniso = f"[{p['substrate_eq_o']},{sub_eq_e},{p['substrate_eq_o']}]"
             em.add_material(name=substrate_material, refractive_index_equation=sub_aniso,
                             wavelength_unit='um')
+        self.check_window()
         pmh.setup_waveguide(em, aniso, p['h_core'], p['w_core'],
-                            window_width=self.window_width, boundary_condition='0A',
+                            window_width=self.window_width, window_margin=self.window_margin,
+                            boundary_condition='0A',
                             substrate_material=substrate_material,
                             substrate_height=p['substrate_height'],
                             topclad_material=p['topclad_material'],
@@ -192,21 +216,49 @@ class Ridge:
         return {'d33': mask * t['d33'] * 1e-12, 'd31': mask * t['d31'] * 1e-12,
                 'd15': mask * d15 * 1e-12}
 
-    def eps_fn(self, wavelength_sh_nm, n_regions):
+    def eps_fn(self, wavelength_sh_nm, n_regions, aniso_substrate=False, substrate_k=0.0,
+               under_n=None, core_eq_complex=None, core_k_scale=1.0):
         """eps(X, Y, comp) at lambda_SH for the driven Cerenkov solve. `n_regions` maps
         'substrate' / 'topclad' to their index at lambda_SH (from EMode, stored with the pump
-        export). The top clad is treated as semi-infinite (thick in the real device)."""
+        export). The top clad is treated as semi-infinite (thick in the real device).
+
+        FDFD-only options (kept out of self.params on purpose: they don't change the EMode pump
+        solve, so they must not change the geometry fingerprint):
+          aniso_substrate: use the substrate's own o/e equations (eps_xx=eps_zz=n_o^2, eps_yy=n_e^2)
+            instead of the scalar n_regions['substrate'] (= n_e, the larger index). Needs
+            substrate_eq_o in params; silently falls back to scalar otherwise.
+          substrate_k: constant extinction coefficient added to the substrate index (absorption /
+            purity sensitivity); eps -> (n + i k)^2.
+          core_eq_complex: complex (n + ik) index equation for the core at lambda_SH (replaces the
+            real-only core index). FOUND 2026-10-19: ScAlN's SH-band k is 0.3-0.7 (absorption length
+            24-53 nm), so a lossless core grossly overestimates what can escape.
+          under_n: if set, the substrate is a FINITE layer (0 <= y < substrate_height) sitting on
+            a half-space of this index (e.g. sapphire at lambda_SH) below y = 0, instead of an
+            infinite half-space. The SH is totally internally reflected back up in such a layer.
+        """
         p = self.params
         n_o = eval_index_equation(p['core_eq_o'], wavelength_sh_nm)
         n_e = eval_index_equation(p['core_eq_e'], wavelength_sh_nm)
         core_eps = {'Ex': n_o ** 2, 'Ey': n_e ** 2, 'Ez': n_o ** 2}
+        if core_eq_complex:  # absorbing (n + ik) core, isotropic -- e.g. ScAlN's strong UV k
+            z = eval_complex_index_equation(core_eq_complex, wavelength_sh_nm)
+            z = complex(z.real, core_k_scale * z.imag)  # k scaled for fit-uncertainty sensitivity
+            core_eps = {c: z ** 2 for c in core_eps}
+        if aniso_substrate and p['substrate_eq_o']:
+            s_o = eval_index_equation(p['substrate_eq_o'], wavelength_sh_nm)
+            s_e = eval_index_equation(p['substrate_eq_e'] or p['substrate_eq_o'], wavelength_sh_nm)
+            sub_n = {'Ex': s_o, 'Ey': s_e, 'Ez': s_o}
+        else:
+            sub_n = {c: n_regions['substrate'] for c in ('Ex', 'Ey', 'Ez')}
+        sub_eps = {c: (sub_n[c] + 1j * substrate_k) ** 2 for c in sub_n}
 
         def f(X, Y, comp):
             core = self.core_mask(X[0, :], Y[:, 0])
             sub = Y < p['substrate_height']
-            return np.where(core, core_eps[comp],
-                            np.where(sub, n_regions['substrate'] ** 2,
-                                     n_regions['topclad'] ** 2)).astype(complex)
+            out = np.where(sub, sub_eps[comp], n_regions['topclad'] ** 2)
+            if under_n is not None:
+                out = np.where(Y < 0.0, under_n ** 2, out)
+            return np.where(core, core_eps[comp], out).astype(complex)
         return f
 
     def d_fn(self, d_tensors_pm):
