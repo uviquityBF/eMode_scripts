@@ -1,0 +1,18 @@
+[10:46:56] run 'cerenkov_bw_230' (survey_config_cerenkov_scaln_bw): 4 geometries, 0 already done, 4 to do
+[10:46:56] [1/4] ridge h=200 w=300 sw=5 sub=custom_substrate  (1e3d10b72d32)
+[10:56:58]   pumps (576s): TM00[A] 2.1787, TM01[A] 2.1636, TM10[S] 2.1585, TE00[S] 2.1546, TE01[S] 2.1043
+[10:57:00]   done in 604s; no phase matches
+[10:57:00]   elapsed 10.1 min, est. remaining 30.2 min
+[10:57:00] [2/4] ridge h=200 w=400 sw=5 sub=custom_substrate  (5271f9b32fa4)
+[10:59:53]   pumps (145s): TM00[A] 2.2026, TE00[S] 2.1990, TM01[A] 2.1662, TM10[S] 2.1586, TE01[S] 2.1043
+[10:59:57]   done in 177s; no phase matches
+[10:59:57]   elapsed 13.0 min, est. remaining 13.0 min
+[10:59:57] [3/4] ridge h=200 w=600 sw=5 sub=custom_substrate  (66b8e227ffb2)
+[11:11:00]   pumps (243s): TM00[A] 2.1889, TE00[S] 2.1814, TM01[A] 2.1652, TM10[S] 2.1610, TE01[S] 2.1043
+[11:11:05]   done in 668s; no phase matches
+[11:11:05]   elapsed 24.1 min, est. remaining 8.0 min
+[11:11:05] [4/4] ridge h=350 w=400 sw=5 sub=custom_substrate  (23f8667a6c01)
+[11:39:49]   attempt 1 failed: ConnectionError('EMode connection error!')
+[11:43:09]   pumps (161s): TM00[A] 2.2659, TE00[S] 2.2572, TM01[A] 2.1686 | TM10[S] 2.1586, TE01[S] 2.1090
+[11:43:12]   done in 1927s; no phase matches
+[11:43:12]   elapsed 56.3 min, est. remaining 0.0 min

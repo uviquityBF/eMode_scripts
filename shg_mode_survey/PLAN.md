@@ -1880,3 +1880,56 @@ Still open: extraction design (z-periodic 3D), reduced-d33 guided numbers are lo
 tail, interface-defect applicability to a ScAlN/AlN-substrate interface, and TE/TM10 pumps / lossless resonance
 engineering in the sweep.
 Tools added: cerenkov_pump_loss.py, guided_loss_cases.py, survey_config_cerenkov_scaln_hw(.py/_smoke.py); cerenkov_fom.py updated.
+
+### Cerenkov row 8: does it stack up? decision matrix + bandwidth / tolerance (2026-10-20)
+
+User: d33 and the Baumler loss curves will not be resolved soon, so drive to caveated conclusions; and
+the Cerenkov channel's very wide SH bandwidth is an attraction. Added: x2-loss sweep for TM00 (all 36 bound
+geometries), `cerenkov_bw_215..235` (EMode pump solves + FDFD at SH 215/220/225/230/235 for four geometries),
+`cerenkov_bandwidth.py`, `runs/cerenkov_decision_matrix.csv`.
+
+**Decision matrix** (best Cerenkov geometry over the h x w sweep, full pump-loss budget, before extraction, vs the
+best guided alternative in the same scenario; guided = max(plain AlN ridge 1.29e-2 %/W, ScAlN-strip rows rescaled to
+the same loss/d33 case -- lower bounds for reduced d33)):
+
+| d33 case | loss x0.25 | fit | x2 |
+|---|---|---|---|
+| yoshioka | 9.3e-3 (0.72x best guided) | 2.9e-3 (0.23x) | 8.7e-4 (0.07x) |
+| frac_0.5 | 2.6e-3 (0.20x) | 8.6e-4 (0.07x) | 2.6e-4 (0.02x) |
+| AlN-like d33 | 6.0e-5 (5e-3x) | 2.2e-5 (2e-3x) | 6.5e-6 (5e-4x) |
+| mbe_like (TE00 wins) | 9.2e-6 (7e-4x) | 9.2e-6 | 9.2e-6 |
+
+(%/W per 1 W pump; TE00 was only run at 'fit' so its x0.25/x2 entries reuse the fit value.) Best guided is always the plain AlN
+ridge (peak, perfectly phase matched, d33 = 4.7). **Versus the guided ScAlN-strip rows Cerenkov wins by 16x-2000x in every
+corner.** It never beats the plain guided ridge at the ridge's single ideal operating point.
+
+**Bandwidth** (the ideal-operating-point comparison above ignores it):
+- Cerenkov kappa(SH wavelength) [%/W/cm, fit, Yoshioka]: 41% h200 w400: 0.099/0.129/0.169/0.217/0.261 at 215/220/225/230/235 nm
+  (x2.6 over the window, monotonic, no cutoff); 41% h350 w400: 0.013..0.055 (x4); x0.25 loss: 0.17..0.34 (x2.0, peaks ~230 nm).
+  So the acceptance is >= the 20 nm SH (>= 40 nm pump) scanned window, with kappa changing by 1.3-4x across it. Limits: (i) the
+  thinnest cores stop binding the pump on the long-wavelength side (41% h200 w300 unbound from SH ~228 nm: n_eff 2.188 -> 2.179 <
+  n_e(AlN) = 2.183; 32% h200 w600 core-power falls below 0.5 at 230+), i.e. thin cores trade bandwidth for peak kappa (~13-20 nm SH);
+  h200 w400 and thicker cores cover the whole window. (ii) d33 held constant vs wavelength (no dispersion data); ScAlN k(lambda)
+  is included (it falls with wavelength, which is why kappa rises).
+- Guided phase matching (estimate from bulk AlN group-index mismatch dn_g ~ 2.4 between 225 and 450 nm; waveguide dispersion not
+  included): FWHM(pump) = 0.221 lambda_p^2 /(L dn_g) = 0.015 nm for L = 1.29 mm (0.007 nm at the SH), 0.19 nm at 0.1 mm, 1.9 nm
+  at 10 um, 19 nm at 1 um. The PM wavelength moves ~0.22 nm (SH) per nm of film thickness (pipeline TM04 fits) => fixed-wavelength
+  pumping needs ~0.03 nm thickness uniformity for the 1.3 mm ridge. Expected efficiency of the best guided ridge with a FIXED
+  pump wavelength vs thickness error sigma_h: 0.05 nm -> 4.8e-3 %/W; 0.5 nm -> 4.8e-4; 2 nm -> 1.2e-4; 5 nm -> 4.8e-5 (peak 1.29e-2
+  only if every device's pump is tuned). Pulsed pumps: a 1 ps pulse (0.3 nm) uses ~6% of the guided acceptance, 100 fs (3 nm) ~0.6%;
+  Cerenkov accepts the whole spectrum. Short guided devices (the loaded/hybrid rows, L_eff ~ 1-10 um) are broad (2-20 nm) but sit at
+  1e-7..1e-6 %/W. Cerenkov kappa is smooth in geometry (~1%/nm in h, ~0.1%/nm in w), so +-5 nm fabrication error costs ~5%.
+
+**Caveated conclusions**
+1. Against every other geometry that has an ScAlN strip/core, loaded, or hybrid structure, a ScAlN-core Cerenkov ridge is better by
+   >=16x in every d33 x loss corner we can define (typically 10^2-10^3x), before extraction.
+2. Against the plain guided AlN ridge: 0.2-0.7x at its ideal tuned operating point if d33 enhancement is real (Yoshioka), 0.02-0.07x at half
+   the enhancement, ~1e-3x if it is not. But once the pump is fixed-wavelength (any real fab spread, thickness error >~0.5 nm) or pulsed, the
+   ridge's expected efficiency falls to ~5e-5..5e-4 %/W, which Cerenkov equals or beats with d33 enhancement >= ~25% of Yoshioka's and
+   loses to only if d33 enhancement is absent (AlN-like: ~2e-5..6e-5; MBE-like: ~9e-6 via TE00).
+3. Cerenkov's value proposition is therefore robustness/bandwidth (no phase matching, pulsed or broadband pump, +-nm fabrication tolerance), not
+   peak efficiency; it is strongest if ScAlN enhancement is real, and no better than the best guided option otherwise.
+4. Everything is before extraction (kz = n_p k0 exceeds air/SiO2/sapphire; needs z-periodic structure or a bevel), and the pump-loss
+   budget (28-210 dB/cm incl. ScAlN k(450)) is the largest single lever after d33.
+Open: extraction study; a measured ScAlN k(450 nm) and d33 vs wavelength; guided-mode (not bulk) group indices for the guided bandwidth; TE
+pumps across the sweep; lossless-resonance engineering.

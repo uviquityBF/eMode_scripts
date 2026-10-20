@@ -81,7 +81,7 @@ def main(run, config_module, k_cases, d_nm, labels, sub_heights, min_core, out_n
             # index and k (validate_cerenkov_1d_periodic.py). ~1 = trustworthy; far from 1 = the
             # 2D solve is dominated by discretization/resonance sensitivity at this loss.
             try:
-                lam_sh = 225.0
+                lam_sh = float(r['wavelength_pump_center']) / 2.0
                 n0 = geo.eval_index_equation(params['core_eq_o'], lam_sh)
                 cx = (cfg.get('cerenkov_core_complex') or {}).get(params['core_eq_o'])
                 kfit = geo.eval_complex_index_equation(cx, lam_sh).imag if cx else 0.0

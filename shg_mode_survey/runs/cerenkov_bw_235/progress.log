@@ -1,0 +1,17 @@
+[11:43:13] run 'cerenkov_bw_235' (survey_config_cerenkov_scaln_bw): 4 geometries, 0 already done, 4 to do
+[11:43:13] [1/4] ridge h=200 w=300 sw=5 sub=custom_substrate  (997b5f3d410d)
+[11:45:53]   pumps (132s): TM00[A] 2.1718, TM01[A] 2.1579, TM10[S] 2.1548, TE00[S] 2.1420, TE01[S] 2.1006
+[11:45:55]   done in 162s; no phase matches
+[11:45:55]   elapsed 2.7 min, est. remaining 8.1 min
+[11:45:55] [2/4] ridge h=200 w=400 sw=5 sub=custom_substrate  (78a8827d6ff2)
+[11:47:19]   pumps (60s): TM00[A] 2.1933, TE00[S] 2.1873, TM01[A] 2.1624, TM10[S] 2.1549, TE01[S] 2.1007
+[11:47:20]   done in 85s; no phase matches
+[11:47:20]   elapsed 4.1 min, est. remaining 4.1 min
+[11:47:20] [3/4] ridge h=200 w=600 sw=5 sub=custom_substrate  (595f72ac747c)
+[11:48:47]   pumps (64s): TM00[A] 2.1821, TE00[S] 2.1717, TM01[A] 2.1610, TM10[S] 2.1575, TE01[S] 2.1007
+[11:48:49]   done in 89s; no phase matches
+[11:48:49]   elapsed 5.6 min, est. remaining 1.9 min
+[11:48:49] [4/4] ridge h=350 w=400 sw=5 sub=custom_substrate  (7dfc25515afe)
+[11:50:13]   pumps (62s): TM00[A] 2.2557, TE00[S] 2.2461, TM01[A] 2.1652 | TM10[S] 2.1549, TE01[S] 2.1016
+[11:50:14]   done in 85s; no phase matches
+[11:50:14]   elapsed 7.0 min, est. remaining 0.0 min
