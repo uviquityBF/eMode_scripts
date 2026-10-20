@@ -1817,3 +1817,66 @@ competitive; (5) a better-conditioned discretization (or graded mesh in the core
 ridge value is ever needed -- not required for the fit/x0.25-x2 cases.
 Tools: cerenkov_1d.py, cerenkov_1d_map.py, validate_cerenkov_1d.py (wide-film 2D), validate_cerenkov_1d_periodic.py,
 cerenkov_scenarios.py, cerenkov_cases.py, cerenkov_fom.py.
+
+### Cerenkov row 8: steps 1-3 -- geometry map, like-for-like guided comparison, pump-loss budget (2026-10-19/20)
+
+**Step 3 (pump-loss budget, `cerenkov_pump_loss.py` -> `cerenkov_pump_loss.csv`)**: the Cerenkov figure of
+merit is pump-loss-limited (L_eff,inf = 1/(2a)). Decomposition per pump: EMode roughness scattering
+(assumed 2.5 nm rms sidewall) + the survey's four growth-interface defect absorption mechanisms
+(Dislocations/C/Si/O, generic AlN-on-sapphire baseline, here *assumed* to apply at the ScAlN/AlN-substrate
+interface; sums reproduce the stored pump_absorption_dB_per_m exactly) + **ScAlN bulk absorption at the
+pump wavelength, which the Ridge family OMITS (Ridge.lossy_mask is None) although the guided ScAlN-strip
+rows include it**. With the Baumler fit k(450 nm) = 0.5-2e-4 that term is 5.8e3 dB/m (32%) and 1.8e4 dB/m
+(41%) at 350x400 -- larger than scattering + interface (~2.8e3 / 2.6e3). The first-pass Cerenkov figure of
+merit therefore overstated efficiency by ~2.7x (27.5%), ~3.1x (32%), ~7.8x (41%). Corrected; k(450) is scaled by
+the same loss-case multiplier s as the SH k. `cerenkov_fom.py` now reports (a) full budget, (b) without
+ScAlN k(450) (old), (c) "low-loss fabrication" (no interface defects, scattering x0.25) with k(450) kept.
+Note k(450 nm) of the Baumler fit is an absorption-tail value of a Sellmeier fit (uncertain); pump loss at 41%
+comes out 140-210 dB/cm (fit) and 57-80 dB/cm (x0.25) vs the ~28 dB/cm first assumed.
+
+**Step 2 (guided ScAlN strips under the same loss cases, `guided_loss_cases.py` ->
+`runs/guided_scaln_loss_cases.csv`, CSV-only because the guided rows' field exports are on the other machine)**:
+sh_absorption_dB_per_m of rows 5.x is >99% strip bulk k(225), so alpha_SH(s) = s*sh_absorption + scattering +
+calibrated; pump absorption bounded two ways (A unscaled, B x s); d33 term rescaled from the stored
+per-tensor-term NCEs/shares (exact for Yoshioka; reduced-d33 scenarios are LOWER BOUNDS because the AlN-core
+part of the d33 term cannot be separated). s=1 reproduces the stored peaks to 1-3%. Best peak efficiency
+[%/W] of the 41% strip row (Yoshioka d33, pump variant A..B): lossless 1.9..22 | x0.05 7.5e-4..8.1e-4 | x0.1 2.0e-4 |
+x0.25 3.2e-5 | x0.5 8.2e-6 | fit 2.05e-6 | x2 5.1e-7 (23% and 9% strips are 10-30x lower). **Guided efficiency scales
+~1/s^2 with ScAlN loss; the Cerenkov device is nearly insensitive.** Crossover with the best Cerenkov geometry
+(below) is at s ~ 0.015-0.04 (k(225) ~ 0.01-0.03 at 41%, absorption length >~ 1 um): Cerenkov wins over the guided
+ScAlN-strip rows for every loss case except nearly lossless ScAlN.
+
+**Step 1 (h_core x w_core sweep, `survey_config_cerenkov_scaln_hw.py`, run `cerenkov_hw`, 40 geometries)**:
+Bound-pump region (TM00, n_eff > n_e(AlN,450) and core power >= 0.5): 41% Sc bound for every geometry tested
+(h 200-450, w 300-800); 32% Sc TM00 unbound for h=200 at w<=400, h=250/300 at w=300 and h=300 at w=300 (only TE00 binds
+there). Cerenkov kappa [%/W/cm] for the TM00 pump, Yoshioka d33, fitted k (d=10 nm; 2D/1D bias 0.90-0.93, i.e. trustworthy):
+
+| h \ w (41%) | 300 | 400 | 600 | 800 |
+|---|---|---|---|---|
+| 200 | 0.159 | 0.169 | 0.125 | 0.098 |
+| 250 | 0.127 | 0.096 | 0.066 | 0.050 |
+| 300 | 0.073 | 0.050 | 0.033 | 0.025 |
+| 350 | 0.042 | 0.027 | 0.017 | 0.013 |
+| 450 | 0.017 | 0.0096 | 0.0055 | 0.0040 |
+
+(32%: same trend, peak 0.095 at h=200 w=600; x0.25 loss: 41% peaks at 0.297 (h=200, w=400), bias 1.00.)
+**kappa rises ~17x going from h=450 to h=200 and with narrower width -- consistent with skin-limited emission: a
+thinner core means a larger fraction of the generated SH is within an absorption length of the substrate interface.**
+Best pump-loss-limited efficiency eff_inf [%/W] per 1 W pump, TM00, Yoshioka d33, BEFORE extraction:
+fit: 2.9e-3 (32%, h200 w600), 2.4e-3 (41%, h200 w300); x0.25: 8.0e-3 (32%), 9.3e-3 (41%, h200 w300) -- ~7x the
+350x400 baseline and ~0.7x the best plain guided AlN ridge (1.3e-2 %/W, d33 = 4.7). By d33 scenario (best over the
+sweep, fit): yoshioka 2.9e-3 | frac_0.5 8.6e-4 | AlN-like 2.2e-5 | mbe_like 2.4e-6 (TM00); TE00 (d31-driven) wins when d33 is
+not enhanced: mbe_like 9.2e-6 vs 2.4e-6, yoshioka 2.0e-5. (Only TM00 @ fit/x0.25 and TE00 @ fit were run for the
+sweep; d = 10 nm; the lossless / x<=0.1 cases are not resolvable by this solver, see earlier entry.)
+
+**Conclusions / what would change them**: (1) Against the *guided ScAlN-strip* rows Cerenkov is 3e2-1e3x better at the
+fitted loss and stays ahead down to k(225) ~ 1% of the fit -- so if ScAlN loss at 225 nm is anywhere near the Baumler
+fit, the Cerenkov route is the better way to use a ScAlN core. (2) Against the plain guided AlN ridge it is ~0.2x (fit)
+to ~0.7x (x0.25) with optimistic d33, before extraction, and ~1e3x worse if d33 enhancement does not materialize
+(MBE-like) -- d33 is the decisive unknown, then extraction efficiency, then pump loss (fabrication: the "low-loss
+fabrication" variant is +2-4x), then ScAlN loss (weak). (3) Best geometry is a THIN core (h ~200-250 nm), where the
+pump is still bound at 41% Sc (n_eff 2.19-2.28) -- but at the edge of binding and with the extrapolated d33 at 41%.
+Still open: extraction design (z-periodic 3D), reduced-d33 guided numbers are lower bounds, the ScAlN k(450 nm) fit
+tail, interface-defect applicability to a ScAlN/AlN-substrate interface, and TE/TM10 pumps / lossless resonance
+engineering in the sweep.
+Tools added: cerenkov_pump_loss.py, guided_loss_cases.py, survey_config_cerenkov_scaln_hw(.py/_smoke.py); cerenkov_fom.py updated.

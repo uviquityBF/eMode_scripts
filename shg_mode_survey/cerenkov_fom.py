@@ -25,6 +25,8 @@ import sys
 import numpy as np
 import pandas as pd
 
+import cerenkov_pump_loss as cpl
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 GUIDED = {  # run -> (label, tags)
@@ -53,48 +55,67 @@ def guided_best(run):
 
 
 def cerenkov_rows(cases_csv, run):
+    """One row per (pump, loss case, d33 scenario). Pump loss budget from cerenkov_pump_loss.csv
+    (run `python cerenkov_pump_loss.py <run> --config=<mod>` first):
+      eff_inf_pct_W        scattering + interface defects + ScAlN bulk k(450) x loss-case multiplier
+      eff_inf_nok450_pct_W scattering + interface only (what the first FoM used -- omits ScAlN k(450))
+      eff_inf_lowloss_pct_W optimistic fabrication: interface defects removed, scattering x0.25
+                           (1.25 nm rms roughness), ScAlN k(450) still included"""
     cs = pd.read_csv(cases_csv)
-    pm = pd.read_csv(os.path.join(HERE, 'runs', run, 'pump_modes.csv'))
-    pm['sub_h'] = pm['params'].apply(lambda s: json.loads(s)['substrate_height'])
-    key = pm.set_index(['fingerprint', 'pump_id'])
+    pl = pd.read_csv(os.path.join(HERE, 'runs', run, 'cerenkov_pump_loss.csv')).set_index(['fingerprint', 'pump_id'])
     scen = [c[len('kappa_'):] for c in cs.columns if c.startswith('kappa_')]
     out = []
     for _, r in cs.iterrows():
-        pr = key.loc[(r['fingerprint'], int(r['pump_id']))]
-        loss_dB_m = float(pr['scattering_dB_per_m']) + float(pr['absorption_dB_per_m'])
-        a = math.log(10) / 10 * loss_dB_m          # pump POWER attenuation [1/m]
-        for s in scen:
-            kap = float(r[f'kappa_{s}'])           # %/W/cm
-            Leff_cm = lambda L_cm: (1 - math.exp(-2 * a * L_cm * 1e-2)) / (2 * a) * 1e2
-            out.append({'comp_sc': r['comp_sc'], 'pump': r['label'], 'k_case': r['k_case'], 'd33_case': s,
-                        'd_nm': r['d_nm'], 'bias_2d_over_1d': r.get('bias_2d_over_1d', np.nan),
-                        'pump_loss_dB_per_cm': loss_dB_m / 100, 'kappa_pct_W_cm': kap,
-                        'escape_frac': float(r[f'escape_{s}']),
-                        'eff_1mm_pct_W': kap * Leff_cm(0.1), 'eff_1cm_pct_W': kap * Leff_cm(1.0),
-                        'eff_inf_pct_W': kap * 1e2 / (2 * a)})
+        pr = pl.loc[(r['fingerprint'], int(r['pump_id']))]
+        rec = pr.to_dict()
+        s_ = float(r['k_scale'])
+        loss = {'': cpl.pump_loss_total(rec, s_), '_nok450': cpl.pump_loss_total(rec, s_, include_k450=False),
+                '_lowloss': cpl.pump_loss_total(rec, s_, interface_scale=0.0, scat_scale=0.25)}
+        a = {k: math.log(10) / 10 * v for k, v in loss.items()}           # power attenuation [1/m]
+        for sname in scen:
+            kap = float(r[f'kappa_{sname}'])           # %/W/cm
+            row = {'comp_sc': r['comp_sc'], 'h_core': r['h_core'], 'w_core': r['w_core'], 'pump': r['label'],
+                   'n_eff': r['n_eff'], 'k_case': r['k_case'], 'k_scale': s_, 'd33_case': sname,
+                   'd_nm': r['d_nm'], 'bias_2d_over_1d': r.get('bias_2d_over_1d', np.nan),
+                   'pump_loss_dB_per_cm': loss[''] / 100, 'kappa_pct_W_cm': kap,
+                   'escape_frac': float(r[f'escape_{sname}'])}
+            for suf, av in a.items():
+                row[f'eff_inf{suf}_pct_W'] = kap * 1e2 / (2 * av)
+            row['eff_1cm_pct_W'] = kap * (1 - math.exp(-2 * a[''] * 1e-2)) / (2 * a['']) * 1e2
+            out.append(row)
     return pd.DataFrame(out)
+
+
+def guided_scaln_cases():
+    p = os.path.join(HERE, 'runs', 'guided_scaln_loss_cases.csv')
+    return pd.read_csv(p) if os.path.exists(p) else None
 
 
 if __name__ == '__main__':
     cases = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, 'runs', 'cerenkov_fixwin', 'cerenkov_cases.csv')
     run = sys.argv[2] if len(sys.argv) > 2 else 'cerenkov_fixwin'
+    pd.set_option('display.width', 220)
     g = {r: guided_best(r) for r in GUIDED}
-    print('GUIDED rows -- best loss-limited peak efficiency [%/W] (window-filtered, refined):')
+    print('GUIDED rows as run (fitted ScAlN k, Yoshioka d33 for rows 5.x) -- best loss-limited peak [%/W]:')
     for r, v in sorted(g.items(), key=lambda kv: -kv[1]['peak_pct_per_W']):
-        print(f"  {GUIDED[r][0]:36s} {v['peak_pct_per_W']:10.3e} %/W  (L_opt {v['L_opt_mm']:.3g} mm, {v['pair']}, "
-              f"NCE {v['nce']:.4g})  [{GUIDED[r][1]}]")
+        print(f"  {GUIDED[r][0]:36s} {v['peak_pct_per_W']:10.3e}  [{GUIDED[r][1]}]")
     best_g = max(v['peak_pct_per_W'] for v in g.values())
     df = cerenkov_rows(cases, run)
     out_csv = os.path.join(HERE, 'runs', run, 'cerenkov_fom.csv')
     df.to_csv(out_csv, index=False)
-    print(f"\nCERENKOV (eff_inf = pump-loss-limited long-device value, per 1 W pump, BEFORE extraction):")
-    show = df[df['d33_case'].isin(['yoshioka', 'frac_0.5', 'mbe_like'])]
-    piv = show.pivot_table(index=['comp_sc', 'pump', 'k_case'], columns='d33_case', values='eff_inf_pct_W')
-    pd.set_option('display.width', 200)
-    print(piv.to_string(float_format=lambda x: f'{x:.2e}'))
-    print(f"\nbest guided (any row) = {best_g:.3e} %/W; ratio Cerenkov(eff_inf, yoshioka) / best guided:")
-    y = df[df['d33_case'] == 'yoshioka'].copy()
-    y['vs_best_guided'] = y['eff_inf_pct_W'] / best_g
-    print(y.pivot_table(index=['comp_sc', 'pump'], columns='k_case', values='vs_best_guided')
-          .to_string(float_format=lambda x: f'{x:.2f}'))
+    order = ['lossless', 'fit_x0.05', 'fit_x0.1', 'fit_x0.25', 'fit_x0.5', 'fit', 'fit_x2']
+    tm = df[(df['pump'] == 'TM00') & (df['d33_case'] == 'yoshioka')]
+    for col, title in (('eff_inf_pct_W', 'full pump-loss budget (scat + interface + ScAlN k450 x s)'),
+                       ('eff_inf_nok450_pct_W', 'WITHOUT ScAlN k(450) (first-pass assumption)'),
+                       ('eff_inf_lowloss_pct_W', 'low-loss fabrication (no interface defects, scat x0.25), k450 kept')):
+        print(f"\nCerenkov TM00, Yoshioka d33 -- eff_inf [%/W] per 1 W pump, BEFORE extraction; {title}:")
+        print(tm.pivot_table(index=['comp_sc', 'h_core', 'w_core'], columns='k_case', values=col)
+              [[o for o in order if o in tm.k_case.values]].to_string(float_format=lambda x: f'{x:.2e}'))
+    gs = guided_scaln_cases()
+    if gs is not None:
+        print("\nGUIDED ScAlN strips under the same loss cases (Yoshioka d33; pump variants A/B bound):")
+        for pv in ('A', 'B'):
+            t = gs[(gs.d33_case == 'yoshioka') & (gs.pump_variant == pv)]
+            print(f"variant {pv}:"); print(t.pivot_table(index='comp_sc', columns='k_case', values='peak_pct_per_W')
+                                          [order].to_string(float_format=lambda x: f'{x:.2e}'))
     print('wrote', out_csv)
