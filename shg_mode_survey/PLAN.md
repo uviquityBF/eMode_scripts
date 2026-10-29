@@ -1933,3 +1933,21 @@ corner.** It never beats the plain guided ridge at the ridge's single ideal oper
    budget (28-210 dB/cm incl. ScAlN k(450)) is the largest single lever after d33.
 Open: extraction study; a measured ScAlN k(450 nm) and d33 vs wavelength; guided-mode (not bulk) group indices for the guided bandwidth; TE
 pumps across the sweep; lossless-resonance engineering.
+
+### 2026-10-29 -- SH-loss assumption: scattering-vs-wavelength models and guided-efficiency sensitivity
+The 100 dB/cm SH loss in the efficiency model is NOT measured; the working rule of thumb (from Wei, previous design engineer) is
+Loss_SH = 5-10 x Loss_pump (scattering ~ 1/lambda^2..3). What was checked (scripts: compute_scattering_reference.py,
+compute_scattering_models_vs_lambda.py, plot_scattering_models.py, plot_loss_overview.py, plot_dispersion.py, guided_sh_loss_ratio.py):
+- EMode-native (em.scattering) roughness scattering of the fundamental TM mode of ridge 350x400 vs wavelength (sidewall rms 2.5 nm, Lc 50 nm):
+  peaks ~350 nm (8.5 dB/cm) and FALLS to 4.6 dB/cm at 220 nm (k0*Lc >~ 1 suppresses the roughness spectrum). Lc scan: 225 nm, Lc 20/50/150 ->
+  6.7/4.9/2.0 dB/cm; sigma^2 scaling (rms /2 -> x0.27). Payne-Lacey adaptation (loss_vs_dimensions/scattering_model.py, uncalibrated) rises mildly
+  toward the UV: 220/450 nm = x1.5 (Lc 50), x4.5 (Lc 10), x6.2 (Lc 2, ~lambda^-2.5); EMode: x0.58 / x1.65 / x2.3 (~lambda^-1.1). The two disagree on
+  the UV trend; cause not diagnosed (candidate: boundary-field/normal-E treatment). Neither shows lambda^-4.
+- TM04 (the phase-matched SH mode) tracked by field overlap from 230 nm: guided only for 220-245 nm (n_eff 2.18 -> 1.84, below sapphire by
+  ~250 nm; leaky/erratic beyond, track lost >385 nm). TM04(220-240 nm)/TM00(450 nm) scattering ratio (constant 2.5 nm rms): EMode 8.9-9.5x
+  (Lc 2), 4.0-4.2x (Lc 10), 1.9-2.5x (Lc 50); Payne-Lacey 6.5-8.3 / 5.6-6.6 / 3.6-4.2. The rule's 5-10x needs Lc <~ 3-10 nm in EMode.
+- Guided efficiency vs Loss_SH/Loss_pump (alpha_SH = r*alpha_pump + material term; runs/guided_sh_loss_ratio.csv). The AlN ridge as run has
+  r = 5.4 (SH 106 dB/cm vs pump 19.6 dB/cm); best peak 1.29e-2 %/W (as run) -> 1.8e-2 (r=5) -> 6.9e-3 (r=10) -> 2.3e-3 (r=20); r=2: 5.2e-2.
+  Bare rib: 3.8e-3 as run -> 2.0e-3 (r=5) -> 7.4e-4 (r=10). Strip rows (3-6) are unaffected (SH loss set by strip material k at 225 nm).
+  Cerenkov best (Yoshioka d33, before extraction) 9.2e-3 (k x0.25) / 2.9e-3 (fit) %/W overtakes the guided AlN ridge once r >~ 8 (x0.25) / r >~ 18
+  (fit); the guided strips stay 10^2-10^3 x below Cerenkov for any r. Conclusions 2 above therefore carry an extra, unmeasured axis (r).
