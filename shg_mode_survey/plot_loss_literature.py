@@ -71,13 +71,16 @@ def main():
         add('SiN', 'Corato-Zanarella 2023 (LPCVD Si/N=0.82), film absorption', 'bound_closed', lam, a, 1.0,
             'authors: eta_abs=1.0025 (preprint Table S21); EMode check 1.0015', 'Corato-Zanarella et al. Opt. Express 32, 5718 (2024)',
             'Sec. 3 / Fig. 5 caption p.7', 'TE, 4 um wide ring; near absorption limit (authors); preprint Table S23 had 2.49/1.2/0.20/0.06/0.02')
-    # ---- SiN: Chauhan 2020 20 nm x 1.3 um core, 0.08 dB/cm at 450 nm; polarization unstated -> TE and TM bounds
-    add('SiN', 'Chauhan 2020 (20 nm core) if TE', 'bound_closed', 450, 0.08, G[('Chauhan_20x1300_450', 'TE')],
-        'EMode, gamma_for_literature.py (n_core 2.10 assumed)', 'Chauhan et al. CLEO 2020', 'abstract p.1, Table 1 p.2',
-        'polarization not stated; coupling loss subtracted, 2 m spiral')
-    add('SiN', 'Chauhan 2020 (20 nm core) if TM', 'bound_closed', 450, 0.08, G[('Chauhan_20x1300_450', 'TM')],
-        'EMode, gamma_for_literature.py (n_core 2.10 assumed)', 'Chauhan et al. CLEO 2020', 'abstract p.1, Table 1 p.2',
-        'polarization not stated')
+    # ---- SiN: Chauhan (LPCVD 20 nm core, single TE mode -- polarization confirmed by Chauhan 2022, Opt. Express 30, 6960)
+    add('SiN', 'Chauhan 2020/2022 LPCVD 20 nm core, TE: 450 nm spiral', 'bound_closed', 450, 0.08, G[('Chauhan_20x1300_450', 'TE')],
+        'EMode, gamma_for_literature.py (n_core 2.10 assumed)', 'Chauhan et al. Opt. Express 30, 6960 (2022)', 'p.5-6 (2 m coil, Fig. 3d)',
+        'single TE mode; authors quote confinement factor 0.065 at 461 nm (power-type), my absorption weight 0.103-0.108')
+    add('SiN', 'Chauhan 2022 LPCVD 20 nm core, TE: 461 nm ring (Qi 9.5e6)', 'bound_closed', 461, 0.09, G[('Chauhan22_20x1300_461', 'TE')],
+        'EMode, gamma_for_literature.py (n_core 2.10 assumed)', 'Chauhan et al. Opt. Express 30, 6960 (2022)', 'p.5-6',
+        'ring loss 0.09 dB/cm; matches 450 nm spiral; scattering + absorption')
+    add('SiN', 'Chauhan 2022 LPCVD 20 nm core, TE: 674 nm photothermal ABSORPTION', 'bound_closed', 674, 0.0017, G[('Chauhan22_20x2300_674', 'TE')],
+        'EMode, gamma_for_literature.py (n_core 2.05 assumed)', 'Chauhan et al. Opt. Express 30, 6960 (2022)', 'p.6, Fig. 5',
+        'measured absorption 0.17 dB/m (<15% of total loss); authors confinement 0.031 would give k ~7e-8; direct absorption, not scattering')
     # ---- SiN: Morin/Chang 2021 (Optica 8, 755), 24 nm core, TE-only 0.8 um guide; cutback at ~450 and 405 nm
     add('SiN', 'Morin 2021 (24 nm core, 2.8 um wide, TE) 450 nm', 'bound_closed', 450, 0.22, G[('Morin_24x2800_450', 'TE')],
         'EMode, gamma_for_literature.py (n_core 2.05 assumed)', 'Morin et al. Optica 8, 755 (2021)', 'p.2 col.1',
@@ -98,18 +101,55 @@ def main():
     # ---- TiO2: Bradley 2011 amorphous sputtered film, prism-coupled slab, TE, 633 nm: 0.12 dB/mm; 0.25 um film -> Gamma ~1 (not computed)
     add('TiO2', 'Bradley 2012 amorphous sputtered TiO2 film (250 nm slab, TE)', 'bound_open', 633, 1.2, 1.0, 'not computed (thick slab, Gamma likely >= 0.9)',
         'Bradley et al. Opt. Express 20, 23821 (2012)', 'abstract, p.7 text', 'planar-film loss; waveguides were 26 dB/cm')
-    # ---- AlN (host, reference): Liu 2018 ring at 455 nm, Gamma not computed
-    add('AlN', 'Liu 2018 AlN ring (500x800 nm, SiO2 clad) -- AlN, not ScAlN', 'bound_open', 455, 3.5, 1.0, 'not computed (plotted at 1)',
-        'Liu et al. arXiv:1807.10716', 'p.4', 'authors: Rayleigh + sidewall scattering')
-    # ---- AlGaN
-    add('AlGaN', 'Gundogdu 2023 Al0.69Ga0.31N ring, TE, 785 nm', 'bound_open', 785, 2.5, 1.0, 'not computed (plotted at 1)',
-        'Gundogdu et al. arXiv:2312.03128', 'Table I', 'total loss from Qint; no absorption split')
-    add('AlGaN', 'Floyd 2020 n-Al0.65Ga0.35N slab, ~280 nm (free-carrier dominated)', 'bound_open', 280, 24.0, 1.0,
-        'not computed (plotted at 1)', 'Floyd et al. Phys. Status Solidi A 217:1900801', 'Sec 3.3',
-        '22-26 dB/cm (midpoint); authors attribute mainly to free-carrier absorption')
-    # ---- LN: Desiatov ring
-    add('LN', 'Desiatov 2019 TFLN ring, 637 nm (scattering-limited)', 'bound_open', 637, 0.06, 1.0, 'not computed (plotted at 1)',
-        'Desiatov et al. arXiv:1902.08217', 'p.2', 'Qint 1.1e7; authors: sidewall scattering-limited')
+    # ---- AlN: Liu 2018 single-crystal MOCVD AlN rings (500 nm film, 800 nm wide, SiO2 clad), TE00; Gamma ~1 (EMode, isotropic n_o approx.)
+    add('AlN', 'Liu 2018 AlN ring TE00 455 nm (500x800 nm, SiO2 clad)', 'bound_closed', 455, 3.5, G[('Liu18_AlN_500x800_455', 'TE')],
+        'EMode, gamma_for_literature.py (isotropic n_o 2.17, substrate approximated as SiO2)', 'Liu et al. Optica 5, 1279 (2018)', 'p.2-4, Fig. 4',
+        'Qint 398k; authors: scattering-limited; wider (1.4 um) ring 1.6 dB/cm in visible (wavelength not given)')
+    add('AlN', 'Liu 2018 AlN ring TE00 390 nm (500x800 nm, SiO2 clad)', 'bound_closed', 390, 8.0, G[('Liu18_AlN_500x800_390', 'TE')],
+        'EMode, gamma_for_literature.py (isotropic n_o 2.21, substrate approximated as SiO2)', 'Liu et al. Optica 5, 1279 (2018)', 'abstract, Fig. 2-3',
+        'Qint 210k; 0.4 um wide ring 20.4 dB/cm (TE00)')
+    # ---- Liu 2018 narrower-ring points (losses scaled from Qint relative to the 0.8 um TE00 ring at 390 nm; approximate) and the
+    #      survey's own pump-loss model evaluated at the same geometries (validate_survey_loss_vs_liu.py -> runs/liu_validation.csv)
+    vrows = list(csv.DictReader(open(os.path.join(HERE, 'runs', 'liu_validation.csv'), newline='')))
+    g_liu = G[('Liu18_AlN_500x800_390', 'TE')]
+    for r in vrows:
+        lam, wd, pol = float(r['wavelength_nm']), float(r['width_nm']), r['pol_wanted']
+        if not (lam == 390.0 and wd == 800.0) and not (lam == 455.0 and wd == 800.0):
+            add('AlN', f'Liu 2018 AlN ring {pol}00 {lam:g} nm {wd / 1000:g} um wide (from Qint, approx.)', 'bound_closed', lam,
+                float(r['liu_dB_per_cm']), g_liu, 'EMode Gamma ~1.01 (0.8 um case applied)', 'Liu et al. Optica 5, 1279 (2018)', 'Fig. 3 / text',
+                r['liu_note'])
+        add('AlN', f"SURVEY MODEL at Liu geometry {pol}00 {lam:g} nm {wd / 1000:g} um wide", 'model', lam, float(r['total_dB_per_cm']), g_liu,
+            'survey pump-loss model: native roughness scattering (sigma 2.5 nm, Lc 50 nm) + interface absorption (140 dB/cm)',
+            'validate_survey_loss_vs_liu.py', 'runs/liu_validation.csv',
+            f"scattering {float(r['scattering_dB_per_cm']):.2f} + absorption {float(r['absorption_dB_per_cm']):.2f} dB/cm; Liu {r['liu_dB_per_cm']} dB/cm; "
+            f"ratio {float(r['total_dB_per_cm']) / float(r['liu_dB_per_cm']):.2f}")
+    # ---- AlN film: our own SPIE 2026 paper (prism coupling, film not waveguide): 2.7 dB/cm at 447 nm; Gamma ~1 not computed
+    add('AlN', 'Uviquity SPIE 2026 MOCVD AlN film, 447 nm (prism coupling)', 'bound_open', 447, 2.7, 1.0, 'not computed (500 nm film slab, Gamma likely ~1)',
+        'Fisher et al. SPIE 2026 (Uviquity)', 'Sec. 2', 'film loss incl. surface scattering; 0.5 nm RMS')
+    # ---- AlN bulk crystal near the SH: Crystal IS patent US 11,555,256 -- summary-level CLAIMS ("less than"), not measured example data I could read
+    for lam, a_cm in ((230, 10.0), (220, 15.0)):
+        add('AlN', f'Crystal IS patent US11555256 bulk PVT AlN, claimed alpha < {a_cm:g} cm-1 at {lam} nm', 'claim_bound', lam, 4.3429 * a_cm, 1.0,
+            'bulk absorption (Gamma = 1)', 'US 11,555,256 (Crystal IS)', 'Summary embodiments (Google Patents text)',
+            'patent claim, not peer reviewed; examples section not read; lower bound of claims ~5 cm-1')
+    # ---- AlN films in the UV (waveguide/ring losses, Gamma not computed -> plotted at 1): what typical AlN-on-sapphire films give near 370-400 nm
+    add('AlN', 'Shin 2021 AlN-on-sapphire ring, 369.5 nm', 'bound_open', 369.5, 60.4, 1.0, 'not computed (plotted at 1)',
+        'Shin et al. Appl. Phys. Lett. 118, 211103 (2021)', 'abstract; Fig. 4 / Table I', 'Qint 25.5k; 7.3 dB/cm at 532 nm (Qint 147k)')
+    add('AlN', 'Stegmaier 2014 polycrystalline AlN waveguide, 400 nm', 'bound_open', 400, 650.0, 1.0, 'not computed (plotted at 1)',
+        'Stegmaier et al. Appl. Phys. Lett. 104, 091108 (2014)', 'text near Fig. 4a (65 dB/mm)', 'polycrystalline 140-200 nm film; loss rises steeply below 500 nm; scattering + defect absorption')
+    # ---- AlN bulk crystals, peer-reviewed measured alpha (read in the PDFs): Bickermann 2010 PVT, 12-18 cm-1 over 220-380 nm (data above
+    #      5.6 eV, i.e. below ~220 nm, unreliable); Klump 2024 PVT, best of 37 samples alpha(230 nm) = 35 cm-1 (typical 50-150, read from figure)
+    for lam in (220, 380):
+        add('AlN', f'Bickermann 2010 PVT bulk AlN, alpha <= 18 cm-1 (12-18 measured), {lam} nm', 'bulk_measured', lam, 4.3429 * 18.0, 1.0,
+            'bulk absorption (Gamma = 1)', 'Bickermann et al. Phys. Status Solidi C 7, 1743 (2010)', 'Sec. 3 / Fig. 2a',
+            '500 um multiply re-sublimated PVT crystal; no reflection correction; above 5.6 eV unreliable')
+    add('AlN', 'Klump 2024 PVT bulk AlN, best of 37 samples, alpha(230 nm) = 35 cm-1', 'bulk_measured', 230, 4.3429 * 35.0, 1.0,
+        'bulk absorption (Gamma = 1)', 'Klump et al. CrystEngComm (2024)', 'p.4 and p.6', 'typical samples 50-150 cm-1 (read from figure), carbon-rich up to 130-260')
+    # ---- AlN MOCVD film absorption floor: Tillner 2020 flat 150-200 cm-1 over 245-400 nm (probably measurement floor)
+    for lam in (245, 400):
+        add('AlN', f'Tillner 2020 MOCVD AlN/sapphire, flat 150-200 cm-1 (175 used), {lam} nm', 'film_floor', lam, 4.3429 * 175.0, 1.0,
+            'bulk absorption (Gamma = 1)', 'Tillner et al. pss(b) 257, 2000278 (2020)', 'abs. spectra (read from text/figures)',
+            'likely a measurement floor (2-3% net absorption in a 1.4 um film) -- upper bound for good films')
+
     # ---- ScAlN: detection limit statement, plotted as a line in the figure
     pts.append(dict(material='ScAlN', label='van Deurzen 2023 MBE Al0.89Sc0.11N: k below detection limit', kind='detection_limit',
                     wavelength_nm='193-1690', wg_loss_dB_per_cm='', gamma_used='', gamma_source='', bound_dB_per_cm='',
@@ -147,11 +187,10 @@ def main():
             label='SiN  Urbach extrapolation, slope 5.07 /eV from their band-fluctuation fit (model, not measured)')
     ch = [p for p in pts if p['label'].startswith('Chauhan')]
     ax.plot([450], [ch[0]['k_equiv']], 'v', color=c, ms=11, mec='k', mew=1.0, zorder=7,
-            label='SiN  Chauhan 2020, 20 nm core: bound if TE (0.08 dB/cm / G=0.108)')
-    ax.plot([450], [ch[1]['k_equiv']], 'v', mfc='white', color=c, ms=11, mew=1.6, zorder=7,
-            label='SiN  ... if TM (G=0.012): polarization not stated in the paper')
-    ax.annotate('TE', (450, ch[0]['k_equiv']), xytext=(-16, -3), textcoords='offset points', fontsize=8, color=c, ha='right', va='center')
-    ax.annotate('TM', (450, ch[1]['k_equiv']), xytext=(-16, 3), textcoords='offset points', fontsize=8, color=c, ha='right', va='center')
+            label='SiN  Chauhan 2020/22, LPCVD 20 nm core, TE: 0.08 dB/cm (450 nm spiral) / G=0.108; 0.09 dB/cm ring @461')
+    ax.plot([461], [ch[1]['k_equiv']], 'v', color=c, ms=8, mec='k', mew=0.6, zorder=7)
+    ax.plot([674], [ch[2]['k_equiv']], 'D', color=c, ms=9, mec='k', mew=1.0, zorder=8,
+            label='SiN  Chauhan 2022: photothermal ABSORPTION at 674 nm, 0.17 dB/m / G=0.044 (measured absorption, not total loss)')
     mo = [p for p in pts if p['label'].startswith('Morin')]
     ax.plot([450], [mo[0]['k_equiv']], 'v', color=c, ms=11, mec='k', mew=1.0, zorder=7,
             label='SiN  Morin 2021, 24 nm core, 2.8 um wide, TE: 0.22 dB/cm / G=0.146 (n_core assumed)')
@@ -190,9 +229,44 @@ def main():
     # ---- ScAlN / AlN
     ax.plot([195, 800], [1e-3, 1e-3], '-', color=COL['ScAlN'], lw=2.2, zorder=5, alpha=0.9,
             label='ScAlN  van Deurzen 2023 (MBE, 11 % Sc): k below detection limit 1e-3, 193-1690 nm')
-    p = [q for q in pts if q['material'] == 'AlN'][0]
-    ax.plot([455], [p['k_equiv']], 'v', mfc='white', color=COL['AlN'], ms=10, mew=1.8, zorder=7,
-            label='AlN (host, not ScAlN)  Liu 2018 ring 3.5 dB/cm @455 nm, Gamma not computed')
+    la = [q for q in pts if q['label'].startswith('Liu 2018 AlN')]
+    ax.plot([455], [la[0]['k_equiv']], 'v', color=COL['AlN'], ms=10, mec='k', mew=0.8, zorder=7,
+            label='AlN  Liu 2018 single-crystal rings, TE00: 3.5 dB/cm @455 nm and 8.0 dB/cm @390 nm (Gamma ~1.01, EMode)')
+    ax.plot([390], [la[1]['k_equiv']], 'v', color=COL['AlN'], ms=10, mec='k', mew=0.8, zorder=7)
+    liu_all = {(q['wavelength_nm'], q['label'].split(' nm ')[1].split(' (')[0]): q for q in pts if q['label'].startswith('Liu 2018 AlN ring')}
+    liu_all[(455.0, '0.8 um wide')] = [q for q in pts if q['label'].startswith('Liu 2018 AlN ring TE00 455')][0]
+    liu_all[(390.0, '0.8 um wide')] = [q for q in pts if q['label'].startswith('Liu 2018 AlN ring TE00 390 nm (500')][0]
+    mod = [q for q in pts if q['label'].startswith('SURVEY MODEL')]
+    for m in mod:
+        key = (m['wavelength_nm'], m['label'].split(' nm ')[1])
+        lq = liu_all.get(key)
+        if lq is None:
+            continue
+        ax.plot([m['wavelength_nm']] * 2, [lq['k_equiv'], m['k_equiv']], '-', color=COL['AlN'], lw=0.9, alpha=0.7, zorder=4)
+        ratio = m['bound_dB_per_cm'] / lq['bound_dB_per_cm']
+        ax.annotate(f"x{ratio:.1f}", (m['wavelength_nm'], m['k_equiv']), xytext=(5, 0), textcoords='offset points', fontsize=7.5, color=COL['AlN'], va='center')
+        if lq['label'] not in ('Liu 2018 AlN ring TE00 455 nm (500x800 nm, SiO2 clad)', 'Liu 2018 AlN ring TE00 390 nm (500x800 nm, SiO2 clad)'):
+            ax.plot([lq['wavelength_nm']], [lq['k_equiv']], 'v', color=COL['AlN'], ms=6, mec='k', mew=0.5, zorder=7)
+    ax.plot([m['wavelength_nm'] for m in mod], [m['k_equiv'] for m in mod], 's', mfc='white', color=COL['AlN'], ms=8, mew=1.6, zorder=8,
+            label="AlN  SURVEY pump-loss model at Liu's geometry (open square) vs Liu measured (triangle); xN = model/Liu")
+    uv = [q for q in pts if q['label'].startswith('Uviquity')][0]
+    ax.plot([447], [uv['k_equiv']], 'v', mfc='white', color=COL['AlN'], ms=9, mew=1.6, zorder=7,
+            label='AlN  Uviquity SPIE 2026 MOCVD film 2.7 dB/cm @447 nm (prism coupling; Gamma ~1 not computed)')
+    pa = [q for q in pts if q['label'].startswith('Crystal IS')]
+    ax.plot([q['wavelength_nm'] for q in pa], [q['k_equiv'] for q in pa], 'D', mfc='white', color=COL['AlN'], ms=8, mew=1.6, zorder=7,
+            label='AlN  Crystal IS patent: bulk PVT crystal, CLAIMED alpha < 10 cm-1 @230, < 15 @220 nm (claim, not peer reviewed)')
+    uvf = [q for q in pts if q['label'].startswith(('Shin 2021', 'Stegmaier 2014'))]
+    ax.plot([q['wavelength_nm'] for q in uvf], [q['k_equiv'] for q in uvf], 'v', mfc='white', color=COL['AlN'], ms=9, mew=1.6, zorder=7,
+            label='AlN  typical films in the UV: Shin 2021 ring 60.4 dB/cm @369.5 nm; Stegmaier 2014 poly-AlN 650 dB/cm @400 nm (Gamma not computed)')
+    bk = [q for q in pts if q['label'].startswith('Bickermann')]
+    ax.plot([q['wavelength_nm'] for q in bk], [q['k_equiv'] for q in bk], '--', color=COL['AlN'], lw=2.0, zorder=5,
+            label='AlN  Bickermann 2010 bulk PVT crystal, measured alpha <= 18 cm-1 over 220-380 nm (best material found; bulk, not a waveguide)')
+    kl = [q for q in pts if q['label'].startswith('Klump')][0]
+    ax.plot([230], [kl['k_equiv']], 'D', color=COL['AlN'], ms=8, mec='k', mew=0.8, zorder=7,
+            label='AlN  Klump 2024 bulk PVT: lowest alpha(230 nm) = 35 cm-1 of 37 samples (typical 50-150)')
+    tl = [q for q in pts if q['label'].startswith('Tillner')]
+    ax.plot([q['wavelength_nm'] for q in tl], [q['k_equiv'] for q in tl], ':', color=COL['AlN'], lw=2.0, zorder=5,
+            label='AlN  Tillner 2020 MOCVD film: flat 150-200 cm-1 over 245-400 nm (probably a measurement floor)')
 
     # ---- SiC: band edge
     ax.axvline(378, color=COL['SiC'], lw=2.0, ls='-.', zorder=3)

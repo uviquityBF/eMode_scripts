@@ -58,6 +58,18 @@ CASES = {
     # Sacher et al. Opt. Express 27, 37400 (2019), Wafer 2: PECVD SiN 135 nm, 340 nm wide, SiO2 clads; n_core not stated -> 1.90 assumed (PECVD)
     'Sacher_135x340_483': dict(wavelength=483.0, h=135.0, w=340.0, n_core=1.90, n_clad=1.465, sub_h=3500.0, top_h=3500.0,
                                window_w=8000.0, x_res=20.0, y_res=5.0, note='PECVD Wafer 2; avg loss 466-500 nm TE<=4.1 TM<=2.8 dB/cm; n_core assumed'),
+    # Chauhan et al. Opt. Express 30, 6960 (2022): 20 nm LPCVD Si3N4, 6 um top / 15 um bottom SiO2, single TE mode; core index not stated -> 2.10 assumed.
+    # paper's own confinement factors: 0.065 (461 nm, 1.3 um), 0.031 (674 nm, 2.3 um)
+    'Chauhan22_20x1300_461': dict(wavelength=461.0, h=20.0, w=1300.0, n_core=2.10, n_clad=1.465, sub_h=3500.0, top_h=3500.0,
+                                  window_w=8000.0, x_res=40.0, y_res=5.0, note='paper confinement 0.065; TE; n_core assumed'),
+    'Chauhan22_20x2300_674': dict(wavelength=674.0, h=20.0, w=2300.0, n_core=2.05, n_clad=1.457, sub_h=4500.0, top_h=4500.0,
+                                  window_w=10000.0, x_res=50.0, y_res=5.0, note='paper confinement 0.031; TE; n_core assumed'),
+    # Liu et al. Optica 5, 1279 (2018): single-crystal MOCVD AlN on sapphire, 500 nm film, 800 nm wide ring, SiO2 clad. Isotropic n_o approximation
+    # (AlN is uniaxial; TE00 mostly sees n_o). n_core ~ ordinary AlN index (2.17 at 455 nm, 2.21 at 390 nm); SiO2 clad. Substrate approximated as SiO2.
+    'Liu18_AlN_500x800_455': dict(wavelength=455.0, h=500.0, w=800.0, n_core=2.17, n_clad=1.466, sub_h=2500.0, top_h=2500.0,
+                                  window_w=6000.0, x_res=20.0, y_res=10.0, note='Liu 2018 3.5 dB/cm TE00; substrate approximated as SiO2'),
+    'Liu18_AlN_500x800_390': dict(wavelength=390.0, h=500.0, w=800.0, n_core=2.21, n_clad=1.474, sub_h=2500.0, top_h=2500.0,
+                                  window_w=6000.0, x_res=20.0, y_res=10.0, note='Liu 2018 8.0 dB/cm TE00; substrate approximated as SiO2'),
     # sanity: very large core -> Gamma should approach 1
     'sanity_big_core': dict(wavelength=450.0, h=3000.0, w=3000.0, n_core=2.10, n_clad=1.465, sub_h=2000.0, top_h=2000.0,
                             window_w=8000.0, x_res=40.0, y_res=40.0, note='Gamma -> 1 expected'),
