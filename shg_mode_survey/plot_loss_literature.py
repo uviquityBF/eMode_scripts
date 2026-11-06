@@ -229,6 +229,17 @@ def main():
     # ---- ScAlN / AlN
     ax.plot([195, 800], [1e-3, 1e-3], '-', color=COL['ScAlN'], lw=2.2, zorder=5, alpha=0.9,
             label='ScAlN  van Deurzen 2023 (MBE, 11 % Sc): k below detection limit 1e-3, 193-1690 nm')
+    # Nanxi Li / A*STAR / IME SPIE 2026 Fig. 1c,d tabulated ellipsometry: sputtered polycrystalline ScAlN on fused silica, 0/10/20/30 % Sc.
+    # Solid where k >= 1e-3 (resolvable), dotted below (model tail, upper bound only). Shades of the ScAlN blue, darker = more Sc.
+    nk = list(csv.DictReader(open(os.path.join('materials', 'ScAlN_NanxiLi_SPIE2026_nk.csv'), newline='')))
+    for pct, shade in ((0, '#9ecae1'), (10, '#6baed6'), (20, '#3182bd'), (30, '#08306b')):
+        rr = np.array([[float(r['wavelength_nm']), float(r['k'])] for r in nk if int(r['sc_percent']) == pct and float(r['k']) > 0])
+        rr = rr[(rr[:, 0] >= 200) & (rr[:, 0] <= 800)]
+        hi = rr[:, 1] >= 1e-3
+        ax.plot(rr[hi, 0], rr[hi, 1], '-', color=shade, lw=1.8, zorder=5,
+                label=('ScAlN  Li (A*STAR/IME) SPIE 2026 sputtered films on fused silica, tabulated ellipsometry k: 0/10/20/30 % Sc (light to dark), '
+                       'dotted below 1e-3 = fit tail') if pct == 0 else None)
+        ax.plot(rr[:, 0], rr[:, 1], ':', color=shade, lw=1.3, zorder=4)
     la = [q for q in pts if q['label'].startswith('Liu 2018 AlN')]
     ax.plot([455], [la[0]['k_equiv']], 'v', color=COL['AlN'], ms=10, mec='k', mew=0.8, zorder=7,
             label='AlN  Liu 2018 single-crystal rings, TE00: 3.5 dB/cm @455 nm and 8.0 dB/cm @390 nm (Gamma ~1.01, EMode)')
