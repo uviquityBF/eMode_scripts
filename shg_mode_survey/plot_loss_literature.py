@@ -98,6 +98,49 @@ def main():
     add('SiN', 'Sacher 2019 PECVD (135 nm core, 340 nm wide) TM', 'bound_closed', 483, 2.8, G[('Sacher_135x340_483', 'TM')],
         'EMode, gamma_for_literature.py (n_core 1.90 assumed)', 'Sacher et al. Opt. Express 27, 37400 (2019)', 'Sec. 3 p.6, Table 3',
         'PECVD Wafer 2; avg over 466-500 nm')
+    # ---- SiN: UVMedico / UVL (Aarhus, EMode Photonix) slide, Photonics West 2026 (photographed; values read from the photo, ~+-1 dB/cm).
+    # Loft et al. is the annealing paper (ONE vendor); the slide's vendor bars A-G and BBO/SiN series are NOT in it. User-stated: RIGHT chart (vendor bars) = unpatterned thin-film slab modes, Gamma = 1; LEFT chart = patterned high-confinement waveguides (Gamma large, not computed). Likely Loft et al., Opt. Lett. 51(8), 2332 (2026) (not verified).
+    SLIDE = 'UVMedico/UVL slide, Photonics West 2026 (photo); related to, but not the same data as, Loft et al. Opt. Lett. 51, 2332 (2026)'
+    add('SiN', 'UVMedico slide: width-independent absorption floor of fit (alpha_a), 447 nm', 'bound_open', 447, 9.5, 1.0,
+        'assumed ~1: slide says high-confinement waveguides; not computed', SLIDE, 'left chart, alpha_s + alpha_a plateau at 2-2.5 um',
+        'patterned waveguides; fit plateau ~9.5 dB/cm; alpha_s alone ~1 dB/cm at 2.5 um; 447 nm confirmed by user')
+    # ---- SiN: Loft et al., Opt. Lett. 51(8), 2332 (2026): 115 nm LPCVD stoichiometric Si3N4 on 3 um SiO2 (one vendor), Metricon prism-coupled
+    # slab TE modes; values read by eye from Fig. 2 / Fig. 4 of the PDF. Gamma: analytic 3-layer slab (n_f 2.045/2.025/2.005 from Fig. 3 Cauchy, SiO2, air).
+    LOFT = 'Loft et al., Opt. Lett. 51(8), 2332 (2026)'
+    for lam, a, g in ((447, 3.3, 0.762), (519, 1.0, 0.689), (636, 0.4, 0.573)):
+        add('SiN', f'Loft 2026 115 nm LPCVD Si3N4 slab TE, NOT annealed, {lam} nm', 'bound_closed', lam, a, g,
+            'analytic 3-layer slab TE0 (115 nm film, n from Loft Fig. 3)', LOFT, 'Fig. 2 dashed reference lines (by eye)',
+            'total slab loss incl. ~1.5/1.2/0.7 dB/cm simulated roughness scattering (their Fig. 4a); 2 sigma bands ~+-0.5-1')
+    for lam, a in ((447, 11.1), (519, 4.5), (636, 2.0)):
+        add('SiN', f'Loft 2026 anneal-induced absorption change after 975 C, {lam} nm', 'bound_closed', lam, a, 1.0,
+            'authors: scattering subtracted and scaled by modal confinement', LOFT, 'text (447: 11.1 +- 1.48) and Fig. 4b (519, 636 by eye)',
+            'DELTA absorption of the film caused by 975 C anneal (not total loss); 447->636 ratio ~5.5, lambda exponent ~5')
+    # ---- AlGaN (open markers, Gamma not computed -> plotted at 1): Gundogdu et al. arXiv:2312.03128 (ring, prism-coupled slab) and Floyd et al. 2020 (n-doped slab)
+    GUN = 'Gundogdu et al., AlGaN/AlN heterostructures (arXiv:2312.03128)'
+    add('AlGaN', 'Gundogdu 2024 Al0.69Ga0.31N ring, 785 nm, TE0 (250 nm AlGaN on 400 nm AlN)', 'bound_open', 785, 2.5, 1.0,
+        'not computed (authors: 90 % of power above the AlN-sapphire interface, NOT the AlGaN-core fraction)', GUN, 'Sec. II.D, Table I',
+        'total ring loss from Qint 1.5e5 (TM 7.1 dB/cm); includes interface, sidewall and AlGaN absorption - not separable')
+    add('AlGaN', 'Gundogdu 2024 Al0.69Ga0.31N planar slab, ~630 nm, TE0 minimum (prism coupling)', 'bound_open', 630, 2.3, 1.0,
+        'not computed (planar, 250 nm film)', GUN, 'Sec. II.B, Fig. 2(d)',
+        'TE0 minimum 2.3 dB/cm "above 600 nm" (exact wavelength not digitised; loss RISES toward the blue); no sidewalls, includes AlN/sapphire interface scatter')
+    add('AlGaN', 'Floyd 2020 n-Al0.65Ga0.35N planar slab, ~280 nm (LED light)', 'bound_open', 280, 24.0, 1.0,
+        'not applicable (planar; effective-thickness treatment)', 'Floyd et al., Phys. Status Solidi A (2020), doi 10.1002/pssa.201900801', 'Abstract; Sec. 3.2-3.3, Fig. 4b',
+        'attenuation 5-6 /cm = 22-26 dB/cm (24 plotted); Si-doped n~1-2e18, free-carrier absorption dominates by the authors own model; weak upper bound only')
+    # ---- OUR OWN AlN: GL04 (as-grown) and GL03 (post-anneal) cutback slopes, 350 nm wide TM, 450/532/635 nm (xlsx of 2026-11-17).
+    # Gamma = core power fraction at 350 nm from validate_survey_loss_vs_gl04 (EMode): 0.94 / 0.90 / 0.84. Slopes = per-device means, all ten devices
+    # (GL04, 11/9 and 11/10 sessions); +-4 dB/cm. GL03 Gamma assumed equal to GL04's (geometry not checked) -> open marker.
+    OWN = 'GL04 AM171 SD01 / GL03 AM172 SD01 cutback, xlsx 2026-11-17'
+    for lam, a, g in ((450, 26.0, 0.94), (532, 17.3, 0.90), (635, 7.8, 0.84)):
+        add('AlN', f'OUR GL04 as-grown cutback slope, {lam} nm (350 nm wide, TM)', 'bound_closed', lam, a, g,
+            'EMode core power fraction, validate_survey_loss_vs_gl04.py', OWN, 'P2P Loss xlsx, per-device-mean fit',
+            'includes sidewall scattering; +-4 dB/cm; 11/9 (450) and 11/10 (532, 635) sessions; sapphire/AlN/PECVD SiO2')
+    add('AlN', 'OUR GL03 post-anneal cutback slope, 450 nm (3 devices)', 'bound_open', 450, 20.0, 0.94,
+        'assumed = GL04 (not computed)', OWN, '11/9 session: 19.8 +- 6.1 dB/cm', 'only 3 usable devices over 0.2 cm; pre-anneal was 32.3 +- 7.2 (3/30)')
+    for v, b, g in (('A', 16.5, 1.5), ('B', 11, 1.5), ('C', 4.5, 0.7), ('D', 7.5, 0.8), ('E', 9.5, 1.5), ('F', 19.5, 2.5), ('G', 6.5, 1.2)):
+        add('SiN', f'UVMedico slide vendor {v} SiN film, 447 nm', 'bound_closed', 447, b, 1.0, 'user: slab / unpatterned thin film, Gamma = 1',
+            SLIDE, 'right chart (bar chart, values read by eye)', 'vendor-supplied SiN films; anneal state unknown')
+        add('SiN', f'UVMedico slide vendor {v} SiN film, 519 nm', 'bound_closed', 519, g, 1.0, 'user: slab / unpatterned thin film, Gamma = 1',
+            SLIDE, 'right chart (bar chart, values read by eye)', 'vendor-supplied SiN films; anneal state unknown')
     # ---- TiO2: Bradley 2011 amorphous sputtered film, prism-coupled slab, TE, 633 nm: 0.12 dB/mm; 0.25 um film -> Gamma ~1 (not computed)
     add('TiO2', 'Bradley 2012 amorphous sputtered TiO2 film (250 nm slab, TE)', 'bound_open', 633, 1.2, 1.0, 'not computed (thick slab, Gamma likely >= 0.9)',
         'Bradley et al. Opt. Express 20, 23821 (2012)', 'abstract, p.7 text', 'planar-film loss; waveguides were 26 dB/cm')
@@ -166,7 +209,8 @@ def main():
     sc_fits = json.load(open('materials/ScAlN_Baumler2019_sellmeier_fits.json'))['fits']
     lam_sc = np.linspace(207, 800, 500)
 
-    fig, ax = plt.subplots(figsize=(14, 9.2))
+    TALL = os.environ.get('LOSS_CHART_TALL') == '1'
+    fig, ax = plt.subplots(figsize=(11, 15) if TALL else (14, 9.2))
     # ---- faded context: curves of the original overview
     ax.plot(aln_m['wavelength_nm'], aln_m['k_o'], color=COL['AlN'], lw=1.2, alpha=0.30, label='(faded) AlN k_o measured, AM187-LT6')
     ax.plot(lam, data['sinx_k'], color=COL['SiN'], lw=1.2, alpha=0.30, label='(faded) SiNx Beliaev fit  [original chart]')
@@ -200,6 +244,27 @@ def main():
     ax.plot([483], [pe[0]['k_equiv']], 's', color=c, ms=9, mec='k', mew=0.8, zorder=7,
             label='SiN  PECVD best: Sacher 2019, 135 nm core, TE 4.1 / TM 2.8 dB/cm (466-500 nm avg), both ~6 dB/cm after /G')
     ax.plot([483], [pe[1]['k_equiv']], 's', mfc='white', color=c, ms=9, mew=1.4, zorder=7)
+    uv = [p for p in pts if p['label'].startswith('UVMedico')]
+    vb = [p for p in uv if 'vendor' in p['label'] and p['wavelength_nm'] == 447]
+    vg = [p for p in uv if 'vendor' in p['label'] and p['wavelength_nm'] == 519]
+    ax.plot([p['wavelength_nm'] for p in vb], [p['k_equiv'] for p in vb], 'v', color=c, ms=8, mec='k', mew=0.9, zorder=7,
+            label='SiN  UVMedico slide (PW 2026): 7 vendor SiN slab (unpatterned) films, 447 nm 4.5-19.5 and 519 nm 0.7-2.5 dB/cm, G=1 (read from photo)')
+    ax.plot([p['wavelength_nm'] for p in vg], [p['k_equiv'] for p in vg], 'v', color=c, ms=8, mec='k', mew=0.9, zorder=7)
+    lo = [p for p in pts if p['label'].startswith('Loft 2026 115')]
+    ax.plot([p['wavelength_nm'] for p in lo], [p['k_equiv'] for p in lo], 'v', mfc='#b5e5d3', color=c, ms=8, mec='k', mew=0.9, zorder=7,
+            label='SiN  Loft 2026 (Opt. Lett.): 115 nm LPCVD Si3N4 slab, NOT annealed, TE 3.3 / 1.0 / 0.4 dB/cm at 447/519/636 nm, G = 0.76/0.69/0.57 (computed)')
+    la_ = [p for p in pts if p['label'].startswith('Loft 2026 anneal')]
+    ax.plot([p['wavelength_nm'] for p in la_], [p['k_equiv'] for p in la_], 'D', mfc='#e6f5ef', color=c, ms=8, mec='k', mew=0.9, zorder=8,
+            label='SiN  Loft 2026: anneal-induced film absorption after 975 C, 11.1 / 4.5 / 2.0 dB/cm at 447/519/636 nm (authors, scattering removed)')
+    og = [p for p in pts if p['label'].startswith('OUR GL04')]
+    ax.plot([p['wavelength_nm'] for p in og], [p['k_equiv'] for p in og], 'v', color=COL['AlN'], ms=11, mec='k', mew=1.3, zorder=9,
+            label='AlN  OUR GL04 as-grown cutback slopes 26.0 / 17.3 / 7.8 dB/cm at 450 / 532 / 635 nm, G = 0.94 / 0.90 / 0.84 (+-4 dB/cm)')
+    o3 = [p for p in pts if p['label'].startswith('OUR GL03')][0]
+    ax.plot([450], [o3['k_equiv']], 'v', mfc='white', color=COL['AlN'], ms=11, mew=2.0, zorder=9,
+            label='AlN  OUR GL03 post-anneal cutback slope 450 nm, 20 +- 6 dB/cm (3 devices; G assumed)')
+    fl = [p for p in uv if 'floor' in p['label']][0]
+    ax.plot([447], [fl['k_equiv']], 'P', mfc='white', color=c, ms=11, mew=1.8, zorder=8,
+            label='SiN  UVMedico slide: patterned high-confinement waveguides, absorption floor of width fit 9.5 dB/cm @447 nm (open cross, G~1 assumed)')
     for lam_e, txt in ((275, 'SiN edge, LPCVD'), (320, 'edge, PECVD-LF'), (400, 'edge, PECVD-MF/HF')):
         ax.plot([lam_e, lam_e], [1e-2, 0.3], color=c, lw=1.0, ls=':', alpha=0.8, zorder=2)
         ax.text(lam_e - 2, 0.29, txt, rotation=90, fontsize=6.5, color=c, ha='right', va='top')
@@ -289,7 +354,7 @@ def main():
     for q in [q for q in pts if q['material'] == 'AlGaN']:
         ax.plot([q['wavelength_nm']], [q['k_equiv']], 'v', mfc='white', color=COL['AlGaN'], ms=10, mew=1.8, zorder=7)
     ax.plot([], [], 'v', mfc='white', color=COL['AlGaN'], ms=10, mew=1.8,
-            label='AlGaN  785 nm ring (Al0.69, 2.5 dB/cm) and ~280 nm n-doped slab (Al0.65, 22-26 dB/cm, free-carrier dominated); Gamma not computed')
+            label='AlGaN  Al0.69 ring 785 nm 2.5 dB/cm; Al0.69 slab ~630 nm 2.3 dB/cm; n-doped Al0.65 slab ~280 nm 22-26 dB/cm (free-carrier dominated); Gamma not computed')
 
     # ---- LiNbO3: WGRAS bulk absorption (undoped congruent), 390-800 nm
     for fn, ls, lab in (('oe-23-17-21690-d005.CSV', '-', 'ordinary'), ('oe-23-17-21690-d006.CSV', '--', 'extraordinary')):
@@ -336,9 +401,10 @@ def main():
     ax.set_title('What published data says about intrinsic absorption near the 450 nm pump and toward 215-235 nm\n'
                  'lowest credible values found per material  (black = what the simulation assumes; faded = original-chart curves)', fontsize=11, color=INK)
     bar.style_ax(ax)
-    ax.legend(fontsize=6.9, frameon=False, loc='upper center', bbox_to_anchor=(0.5, -0.09), ncol=1)
-    fig.tight_layout(rect=(0, 0.035, 0.93, 1))
-    out = os.path.join('runs', 'loss_overview_literature.png')
+    leg = ax.legend(fontsize=6.9, frameon=False, loc='upper center', bbox_to_anchor=(0.5, -0.07 if TALL else -0.09), ncol=1)
+    json.dump([t.get_text() for t in leg.get_texts()], open(os.path.join('materials', 'loss_chart_legend.json'), 'w', encoding='utf-8'), indent=1)
+    fig.tight_layout(rect=(0, 0.03 if TALL else 0.035, 0.93, 1))
+    out = os.path.join('runs', 'loss_overview_literature_tall.png' if TALL else 'loss_overview_literature.png')
     fig.savefig(out, dpi=140)
     print('wrote', out)
 

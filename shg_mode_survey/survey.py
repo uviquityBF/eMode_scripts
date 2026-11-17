@@ -46,6 +46,7 @@ sys.path.insert(0, HERE)
 import geometry as geo  # noqa: E402  (also puts the shared folders on sys.path)
 import emode_helpers as pmh  # noqa: E402
 import absorption_model as am  # noqa: E402
+import loss_model as lm  # noqa: E402
 import shg_physics as sp  # noqa: E402
 
 FIELD_KEYS = ['Ex', 'Ey', 'Ez', 'Hx', 'Hy', 'Hz', 'Sx', 'Sy', 'Sz']
@@ -353,10 +354,10 @@ def characterize_pump(em, geom, cfg, t, lam_center, export_path=None):
     sims = [sp.transverse_similarity(t['small'][i_mid], small(f), dA_small) for f in modes]
     i = int(np.argmax(sims))
     mask = geom.core_mask(x, y)
-    scat = native_scattering(em, i, geom.scatter_shapes)
-    absn = (sum(am.compute_mechanism_losses(mask, x[1] - x[0], y, modes[i]['Sz'],
-                                            cfg['pump_absorption_mechanisms']).values())
-            + bulk_absorption_loss(geom, x, y, modes[i], 2 * lam_center))
+    lp = lm.evaluate(mask, x[1] - x[0], y, modes[i]['Sz'], native_scattering(em, i, geom.scatter_shapes),
+                     cfg['pump_absorption_mechanisms'], 2 * lam_center, cfg.get('loss_model'))
+    scat = lp['scattering_sidewall'] + lp['volume_scattering']
+    absn = lp['absorption_interface'] + bulk_absorption_loss(geom, x, y, modes[i], 2 * lam_center)
     regions = geom.cerenkov_regions(em, lam_center)
     flags = sp.cerenkov_flags(n[i].real, regions)
     allowed = [f for f in flags if f['allowed']]
@@ -496,12 +497,13 @@ def refine_crossing(em, geom, cfg, c, export_path):
     d_ref = cfg['d_tensors_pm'][cfg['d_ref_material']]['d33'] * 1e-12
     np_, ns_ = float(n_p[ip].real), float(n_s[i_s].real)
     dx = x[1] - x[0]
-    abs_p = (sum(am.compute_mechanism_losses(mask, dx, y, pm[ip]['Sz'],
-                                             cfg['pump_absorption_mechanisms']).values())
-             + bulk_p)
-    abs_s = (sum(am.compute_mechanism_losses(mask, dx, y, sm[i_s]['Sz'],
-                                             cfg['sh_absorption_mechanisms']).values())
-             + bulk_s + cal_s)
+    lmodel = cfg.get('loss_model')
+    lp = lm.evaluate(mask, dx, y, pm[ip]['Sz'], scat_p, cfg['pump_absorption_mechanisms'], 2 * lam, lmodel)
+    ls = lm.evaluate(mask, dx, y, sm[i_s]['Sz'], scat_s, cfg['sh_absorption_mechanisms'], lam, lmodel)
+    scat_p = lp['scattering_sidewall'] + lp['volume_scattering']   # == native scattering unless loss_model is set
+    scat_s = ls['scattering_sidewall'] + ls['volume_scattering']
+    abs_p = lp['absorption_interface'] + bulk_p
+    abs_s = ls['absorption_interface'] + bulk_s + cal_s
     L_opt, L_eff, peak = sp.loss_limited_length(eta, np.nan_to_num(scat_p) + abs_p,
                                                 np.nan_to_num(scat_s) + abs_s)
     cer = sp.cerenkov_flags(np_, geom.cerenkov_regions(em, lam))
@@ -625,7 +627,7 @@ def main(run_name, config_module='survey_config', pumps_only=False):
     gpath = os.path.join(run_dir, 'geometries.csv')
     done = done_fingerprints(gpath)
     fp_settings = {k: v for k, v in cfg.items() if k not in ('pump_absorption_mechanisms',
-                                                            'sh_absorption_mechanisms')}
+                                                            'sh_absorption_mechanisms', 'loss_model')}
     todo = []
     for family, params in geometries:
         g = geo.make_geometry(family, params)

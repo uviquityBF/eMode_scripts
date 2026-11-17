@@ -48,6 +48,10 @@ SETTINGS = {
         {'name': 'O impurities (growth interface)', 'localization': 'interface', 'shape': 'step', 'alpha0': 0.5e4, 'L': 50.0},
     ],
     'sh_absorption_mechanisms': [],
+    # Optional extra loss switches (see loss_model.py); ABSENT = the model exactly as before. Not part of the
+    # geometry fingerprint. Example:
+    # 'loss_model': {'volume_scattering': {'enabled': True, 'C_dB_per_cm': 5.0, 'p': 4.0, 'bands': ('pump',)},
+    #                'absorption_lambda': {'p': 2.0, 'lam_ref_nm': 450.0}, 'scattering_scale': 1.0},
 }
 
 # (family, params) -- Step 1: existing ridge only.
